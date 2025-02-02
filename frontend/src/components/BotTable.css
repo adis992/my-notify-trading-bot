@@ -1,0 +1,153 @@
+/* BotTable.css */
+
+.bot-container {
+  /* Sve skupa stavi u "kontejner" fiksne max širine i centriraj */
+  max-width: 1200px;
+  margin: 30px auto;
+  padding: 20px;
+  background-color: #1a1a1a; /* tamnija pozadina */
+  border-radius: 8px;
+
+  /* Smanjeno na ~90% (možeš promijeniti na 0.75 ili drugo) */
+  transform: scale(0.9);
+  transform-origin: top center;
+  font-family: "Arial", sans-serif;
+  color: #f0f0f0; /* svijetlija slova */
+}
+
+.bot-container h2 {
+  margin-bottom: 10px;
+  color: #fff;
+  text-align: center;
+}
+
+.coin-selector {
+  margin-bottom: 20px;
+  text-align: center;
+  font-size: 1.1rem;
+}
+
+.coin-selector label {
+  margin-right: 10px;
+}
+
+.coin-selector select {
+  background-color: #333;
+  color: #fff;
+  border: 1px solid #555;
+  padding: 5px 10px;
+  border-radius: 4px;
+}
+
+/* Tablice */
+.market-table,
+.indicators-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 auto 30px auto; /* mrdni ih malo od dolje */
+  background-color: #2b2b2b; /* tamnija */
+  border-radius: 6px;
+  overflow: hidden; /* da zaobljeni rubovi budu uredni */
+}
+
+.market-table thead th,
+.indicators-table thead th {
+  background: #3a3a3a; /* zaglavlje malo svjetlije */
+  color: #fff;
+  padding: 10px;
+  border: none; /* maknimo obrub */
+  text-transform: uppercase;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.market-table tbody td,
+.indicators-table tbody td {
+  padding: 10px;
+  border-bottom: 1px solid #444; /* tanka linija razdjelnica */
+  text-align: center;
+  font-size: 0.9rem;
+  color: #e0e0e0; /* svjetliji tekst */
+}
+
+.market-table tbody tr:last-child td,
+.indicators-table tbody tr:last-child td {
+  border-bottom: none; /* makni liniju kod zadnjeg retka */
+}
+
+/* Posebne klase za boje */
+.buy {
+  color: #31d679; /* zelena */
+  font-weight: 600;
+}
+.sell {
+  color: #e96c6c; /* crvena */
+  font-weight: 600;
+}
+.neutral {
+  color: #cccccc; /* svjetlo siva */
+  font-weight: 600;
+}
+
+/* Signal box */
+.signal-box {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 0.85rem;
+}
+
+.signal.buy .signal-box {
+  background-color: #31d679;
+  color: #000;
+}
+
+.signal.sell .signal-box {
+  background-color: #e96c6c;
+  color: #000;
+}
+
+.signal.neutral .signal-box {
+  background-color: #555;
+}
+
+/* Predikcija box */
+.prediction-box {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: #000;
+}
+
+.prediction-box.buy {
+  background-color: #31d679;
+}
+
+.prediction-box.sell {
+  background-color: #e96c6c;
+}
+
+/* Hover efekti na redove tablice */
+.market-table tbody tr:hover,
+.indicators-table tbody tr:hover {
+  background-color: #3b3b3b; /* malo svjetlije pri hoveru */
+}
+
+/* Manje prilagodbe za mobitele ili manje ekrane */
+@media only screen and (max-width: 768px) {
+  .bot-container {
+    transform: scale(0.8);
+  }
+  .coin-selector {
+    font-size: 1rem;
+  }
+  .market-table thead th,
+  .indicators-table thead th,
+  .market-table tbody td,
+  .indicators-table tbody td {
+    font-size: 0.8rem;
+    padding: 6px;
+  }
+}

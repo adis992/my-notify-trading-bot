@@ -1,0 +1,17 @@
+{
+  "name": "my-notify-bot-backend",
+  "version": "1.0.0",
+  "description": "Backend za Notify Bot",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+    
+  },
+  "dependencies": {
+    "axios": "latest",
+    "cors": "latest",
+    "dotenv": "latest",
+    "express": "latest",
+    "technicalindicators": "3.1.0"
+  }
+}

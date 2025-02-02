@@ -1,0 +1,59 @@
+body {
+  font-family: Arial, sans-serif;
+  background-color: #000000;
+  color: white;
+  text-align: center;
+}
+
+.bot-container {
+  width: 90%;
+  margin: auto;
+  text-align: center;
+}
+
+.coin-selector {
+  margin-bottom: 10px;
+}
+
+.market-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+
+.market-table th, .market-table td {
+  border: 1px solid #ddd;
+  padding: 10px;
+  text-align: center;
+}
+
+.market-table th {
+  background-color: #333;
+  color: white;
+}
+
+.buy {
+  background-color: green;
+  color: white;
+}
+
+.sell {
+  background-color: red;
+  color: white;
+}
+
+.neutral {
+  background-color: gray;
+  color: white;
+}
+
+@media screen and (max-width: 600px) {
+  .bot-container {
+      width: 100%;
+      font-size: 12px;
+  }
+
+  .market-table th, .market-table td {
+      padding: 5px;
+  }
+}
