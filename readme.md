@@ -54,6 +54,7 @@ React + Node.js aplikacija za praćenje kripto tržišta i indikatora koristeći
 ## 🚀 Live Demo
 
 **GitHub Pages**: <https://adis992.github.io/my-notify-trading-bot>
+**Backend API**: <https://my-notify-trading-bot.onrender.com>
 
 > **REAL-TIME TRADING**: Aplikacija koristi pravi Binance API za live trading podatke. Backend je hostiran na Render-u za 24/7 dostupnost.
 

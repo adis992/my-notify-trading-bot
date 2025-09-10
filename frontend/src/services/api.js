@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-// Production backend URL (will be deployed to Render)
+// Production backend URL (deployed on Render)
 const PRODUCTION_API_URL = "https://my-notify-trading-bot.onrender.com";
 const LOCAL_API_URL = "http://localhost:4000";
 
