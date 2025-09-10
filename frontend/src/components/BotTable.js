@@ -193,8 +193,13 @@ function BotTable() {
           {connectionError ? '❌ Connection Error' :
            isWakingUp ? '⏳ Waking up server...' :
            window.location.hostname.includes('github.io') 
-            ? `🚀 LIVE TRADING - Real-time Binance API ${lastUpdateTime ? `(Updated: ${new Date(lastUpdateTime).toLocaleTimeString()})` : ''}` 
+            ? `🚀 LIVE TRADING - ${marketData.length > 0 && marketData[0].source === 'alternative_api' ? 'CoinGecko/Coinbase' : 'Binance'} API ${lastUpdateTime ? `(Updated: ${new Date(lastUpdateTime).toLocaleTimeString()})` : ''}` 
             : '💻 LOCAL DEV - Backend on localhost:4000'}
+          {marketData.length > 0 && marketData[0].note && (
+            <div style={{ fontSize: '12px', marginTop: '4px', opacity: 0.9 }}>
+              {marketData[0].note}
+            </div>
+          )}
         </div>
 
         {/* Connection error alert */}
