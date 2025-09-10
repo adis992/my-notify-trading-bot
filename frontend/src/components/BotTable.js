@@ -11,21 +11,37 @@ function BotTable() {
   );
   const [isLoading, setIsLoading] = useState(false);
   const [connectionError, setConnectionError] = useState(null);
+  const [lastUpdateTime, setLastUpdateTime] = useState(null);
+  const [isWakingUp, setIsWakingUp] = useState(false);
 
   const coins = [
     'bitcoin','ethereum','solana','cardano','dogecoin',
     'xrp','litecoin','polkadot','chainlink','avalanche'
   ];
 
-  useEffect(()=>{
+    useEffect(() => {
     fetchAll();
-    const interval = setInterval(fetchAll, 10000);
-    return ()=> clearInterval(interval);
-  },[selectedCoin]);
+    
+    // Set up periodic connection testing
+    const connectionTestInterval = setInterval(() => {
+      // Only test connection if we haven't fetched recently (avoid interference)
+      if (!loading && Date.now() - lastUpdateTime > 60000) { // 1 minute since last update
+        fetchAll();
+      }
+    }, 120000); // Test every 2 minutes
+
+    return () => clearInterval(connectionTestInterval);
+  }, []);
 
   const fetchAll= async()=>{
     setIsLoading(true);
     setConnectionError(null);
+    
+    // Check if this might be a cold start
+    if (!lastUpdateTime || Date.now() - lastUpdateTime > 300000) { // 5 minutes
+      setIsWakingUp(true);
+    }
+    
     try{
       const marketDataResult = await fetchMarketData(selectedCoin);
       setMarketData(marketDataResult || []);
@@ -35,9 +51,16 @@ function BotTable() {
       
       const tradesResult = await fetchTradeHistory();
       setTradeHistory(tradesResult || []);
+      
+      setLastUpdateTime(Date.now());
+      setIsWakingUp(false);
     }catch(err){
       console.error('Backend connection failed:', err);
-      setConnectionError('Cannot connect to trading backend. Check if server is running.');
+      if (err.code === 'ECONNABORTED') {
+        setConnectionError('Server is waking up (cold start). Please wait 30-60 seconds...');
+      } else {
+        setConnectionError('Cannot connect to trading backend. Retrying...');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -136,12 +159,30 @@ function BotTable() {
       `}</style>
 
       <div style={{ width:'90%', margin:'0 auto', padding:'20px'}}>
-        <h2 style={{ textAlign:'center'}}>Trade Panel</h2>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
+          <h2 style={{ margin: 0, flex: 1, color: '#2c3e50' }}>Live Trading Bot</h2>
+          <button 
+            onClick={fetchAll}
+            disabled={loading}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: loading ? '#95a5a6' : '#3498db',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              fontSize: '14px',
+              transition: 'background-color 0.3s'
+            }}
+          >
+            {loading ? '⏳ Loading...' : '🔄 Refresh'}
+          </button>
+        </div>
 
         {/* Real-time status banner */}
         <div style={{ 
-          background: window.location.hostname.includes('github.io') ? '#28a745' : '#007bff', 
-          color: 'white', 
+          background: connectionError ? '#dc3545' : (isWakingUp ? '#ffc107' : (window.location.hostname.includes('github.io') ? '#28a745' : '#007bff')), 
+          color: connectionError ? 'white' : (isWakingUp ? '#212529' : 'white'), 
           padding: '12px', 
           margin: '15px 0', 
           borderRadius: '6px', 
@@ -149,8 +190,10 @@ function BotTable() {
           fontSize: '14px',
           fontWeight: 'bold'
         }}>
-          {window.location.hostname.includes('github.io') 
-            ? '🚀 LIVE TRADING - Real-time Binance API data' 
+          {connectionError ? '❌ Connection Error' :
+           isWakingUp ? '⏳ Waking up server...' :
+           window.location.hostname.includes('github.io') 
+            ? `🚀 LIVE TRADING - Real-time Binance API ${lastUpdateTime ? `(Updated: ${new Date(lastUpdateTime).toLocaleTimeString()})` : ''}` 
             : '💻 LOCAL DEV - Backend on localhost:4000'}
         </div>
 
@@ -166,6 +209,11 @@ function BotTable() {
             fontSize: '14px'
           }}>
             ❌ {connectionError}
+            <div style={{ fontSize: '12px', marginTop: '8px', opacity: 0.9 }}>
+              {connectionError.includes('waking up') 
+                ? 'Free tier servers sleep after inactivity. First request may take 30-60 seconds.' 
+                : 'Retrying automatically... Check console for details.'}
+            </div>
           </div>
         )}
 

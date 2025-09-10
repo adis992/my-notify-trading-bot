@@ -9,33 +9,47 @@ const API_BASE_URL = window.location.hostname.includes('github.io')
   ? PRODUCTION_API_URL 
   : LOCAL_API_URL;
 
-export const fetchMarketData = async (coin) => {
+// Configure axios with longer timeout for Render cold starts
+const apiClient = axios.create({
+  timeout: 30000, // 30 seconds timeout for cold starts
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+// Retry function for failed requests
+const retryRequest = async (requestFn, maxRetries = 3, delay = 2000) => {
+  for (let i = 0; i < maxRetries; i++) {
     try {
-        console.log(`🚀 Fetching real-time data from: ${API_BASE_URL}`);
-        const response = await axios.get(`${API_BASE_URL}/api/getAllIndicators?coin=${coin}`);
-        return response.data.success ? response.data.data : [];
+      return await requestFn();
     } catch (error) {
-        console.error('Error fetching market data:', error);
-        throw error; // Don't fall back to demo - we want real data!
+      console.log(`Attempt ${i + 1} failed:`, error.message);
+      if (i === maxRetries - 1) throw error;
+      
+      // Wait before retrying, longer delay for cold starts
+      await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
     }
+  }
+};
+
+export const fetchMarketData = async (coin) => {
+    return retryRequest(async () => {
+        console.log(`🚀 Fetching real-time data from: ${API_BASE_URL}`);
+        const response = await apiClient.get(`${API_BASE_URL}/api/getAllIndicators?coin=${coin}`);
+        return response.data.success ? response.data.data : [];
+    });
 };
 
 export const fetchLogs = async () => {
-    try {
-        const response = await axios.get(`${API_BASE_URL}/api/logs`);
+    return retryRequest(async () => {
+        const response = await apiClient.get(`${API_BASE_URL}/api/logs`);
         return response.data.success ? response.data.logs : [];
-    } catch (error) {
-        console.error('Error fetching logs:', error);
-        return [];
-    }
+    });
 };
 
 export const fetchTradeHistory = async () => {
-    try {
-        const response = await axios.get(`${API_BASE_URL}/api/tradeHistory`);
+    return retryRequest(async () => {
+        const response = await apiClient.get(`${API_BASE_URL}/api/tradeHistory`);
         return response.data.success ? response.data.trades : [];
-    } catch (error) {
-        console.error('Error fetching trade history:', error);
-        return [];
-    }
+    });
 };

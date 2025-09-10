@@ -1,194 +1,218 @@
-<<<<<<< HEAD
-npm install
-Frontend
-bash
-Kopiraj
-cd frontend  # (ako je frontend u posebnom folderu)
-npm install
-Pokretanje servera
-bash
-Kopiraj
-node server.js
-Ili, ovisno o skriptama u package.json:
+# 🚀 Crypto Trading Bot - Real-Time Market Analysis
 
-bash
-Kopiraj
-npm run start
-Napomena: Prema zadanim postavkama, server sluša na http://localhost:4000.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
+[![React](https://img.shields.io/badge/React-18+-blue.svg)](https://reactjs.org/)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-brightgreen.svg)](https://adis992.github.io/my-notify-trading-bot/)
 
-Pokretanje React aplikacije
-U folderu frontend:
+A professional cryptocurrency trading bot with real-time market data analysis, technical indicators, and comprehensive trading insights. Built with React frontend and Node.js backend, featuring live Binance API integration.
 
-bash
-Kopiraj
-npm start
-Potom u pregledniku otvori http://localhost:3000 (ili drugi port, ovisno o postavkama projekta).
+## 🌟 Features
 
-Ako je sve ispravno, React će dohvaćati podatke s Node servera i prikazivati ih u panelu.
+### Real-Time Market Data
+- **Live Price Tracking**: Real-time cryptocurrency prices from Binance API
+- **Technical Indicators**: RSI, MACD, and custom trading signals
+- **Market Analysis**: 24h price changes, volume analysis, and trend detection
+- **Multi-Timeframe Support**: 1m, 5m, 15m, 1h, 4h, 1d timeframes
 
-Deploy
-Backend: može se deployati na Railway, Render ili slične hosting platforme za Node.js aplikacije.
-Frontend: nakon izrade produkcijskog builda (npm run build), može se objaviti na GitHub Pages, Netlify, Vercel itd.
-Pripaziti da se zamijeni localhost:4000 s javnim URL-om Node servera gdje god se pozivaju API rute.
+### Advanced Trading Interface
+- **Interactive Dashboard**: Clean, responsive design with real-time updates
+- **Connection Status**: Live backend connectivity monitoring
+- **Trade History**: Comprehensive logging of all trading activities
+- **Profit Tracking**: Real-time P&L calculations and performance metrics
 
-Brisanje logova
-Ako želiš ručno obrisati logove, u server.js postoji ruta:
+### Technical Architecture
+- **Microservices Design**: Separate frontend and backend services
+- **Auto-Retry Logic**: Robust connection handling with exponential backoff
+- **Cold Start Optimization**: Smart handling of serverless backend hibernation
+- **Responsive UI**: Mobile-friendly interface with adaptive layouts
 
-bash
-Kopiraj
-DELETE /api/logs
-koja resetira niz logsData.
-Automatski se brišu najstariji logovi kada broj prijeđe 1000 (implementirano u getAllIndicators ruti).
+## 🔧 Tech Stack
 
-Napomena o .env
-U ovom projektu nije potreban .env fajl jer se koriste javni Binance endpointi bez API ključeva.
-Ako ubuduće budeš koristio privatne ključeve (npr. za pravi trading), svakako ih spremi u .env fajl i dodaj u .gitignore, kako se ključevi ne bi javno objavili.
+**Frontend:**
+- React 18+ with Hooks
+- Axios for API communication
+- CSS3 with responsive design
+- GitHub Pages hosting
 
-Kontakt
-Ako imaš pitanja, prijedloge ili poboljšanja:
+**Backend:**
+- Node.js with Express
+- Binance API integration
+- Technical indicators library
+- CORS configuration
+- Render.com hosting
 
-# Trade Bot Panel
+## 🚀 Quick Start
 
-React + Node.js aplikacija za praćenje kripto tržišta i indikatora koristeći javni Binance API.
+### Prerequisites
+- Node.js 18 or higher
+- npm or yarn package manager
+- Git
 
-## 🚀 Live Demo
+### Local Development
 
-**GitHub Pages**: <https://adis992.github.io/my-notify-trading-bot>
-**Backend API**: <https://my-notify-trading-bot.onrender.com>
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/adis992/my-notify-trading-bot.git
+   cd my-notify-trading-bot
+   ```
 
-> **REAL-TIME TRADING**: Aplikacija koristi pravi Binance API za live trading podatke. Backend je hostiran na Render-u za 24/7 dostupnost.
+2. **Backend Setup**
+   ```bash
+   cd backend
+   npm install
+   npm start
+   ```
+   Backend will run on `http://localhost:4000`
 
-## 🏗️ Backend Deployment (Render)
+3. **Frontend Setup**
+   ```bash
+   cd frontend
+   npm install
+   npm start
+   ```
+   Frontend will run on `http://localhost:3000`
 
-1. Fork ovaj repo
-2. Kreiraj account na [Render.com](https://render.com)
-3. Novi Web Service > Connect GitHub > Odaberi svoj fork
-4. Postavke:
-   - **Build Command**: `cd backend && npm install`
-   - **Start Command**: `cd backend && npm start`
-   - **Environment**: Node.js
-   - **Instance Type**: Free
-5. Deploy!
+### Production Deployment
 
-## 🧩 Pregled
-
-Frontend prikazuje dvije glavne tablice (Market i Indicators) + tabove za Logs i Trade History.
-Backend dohvaća klines podatke, računa indikatore (RSI, MACD), generira BUY/SELL signale i vodi memorijske logove.
-
-## ✨ Glavne karakteristike
-
-Backend (`backend/server.js`):
-
-- Dohvaća /api/v3/klines (Binance)
-- Računa RSI, MACD, histogram, BUY/SELL signale, predikciju
-- Ograničava logove na max 1000 unosa
-
-Frontend (`frontend/src`):
-
-- Odabir coina i timeframe-ova
-- Market tablica (trenutna cijena, entry, stop, TP, signal)
-- Indicators tablica (BUY%, SELL%, RSI, MACD, histogram, predikcija)
-- Tabs: MARKET | LOGS | HISTORY
-- Osnovna responzivnost + horizontalni scroll na malim ekranima
-
-## 🛠 Lokalno pokretanje
-
-1. Backend instalacija
-
-```bash
-cd backend
-npm install
-npm start   # pokreće server na http://localhost:4000
-```
-
-1. Frontend instalacija
-
+**Frontend (GitHub Pages):**
 ```bash
 cd frontend
-npm install
-npm start   # pokreće React dev server (default http://localhost:3000)
-```
-
-1. Korištenje
-
-Otvoriti browser: <http://localhost:3000> (frontend poziva backend na portu 4000).
-
-## 🚀 Deploy
-
-### Backend
-
-Hostati na: Render, Railway, Fly.io, Koyeb ili Vercel Serverless (uz prilagodbu). Nakon deploya, zamijeni `http://localhost:4000` bazni URL u frontend `services/api.js` ako je drugačiji.
-
-### Frontend (GitHub Pages)
-
-Konfigurirano u `frontend/package.json`:
-
-```json
-"homepage": "https://adis992.github.io/my-notify-trading-bot",
-"predeploy": "npm run build",
-"deploy": "gh-pages -d build"
-```
-
-Koraci:
-
-```bash
-cd frontend
-npm install        # instalira i gh-pages (ako već nije)
+npm run build
 npm run deploy
 ```
 
-Stranica će biti dostupna na: <https://adis992.github.io/my-notify-trading-bot>
+**Backend (Render.com):**
+- Connect your GitHub repository to Render
+- Deploy from `backend` directory
+- Set build command: `npm install`
+- Set start command: `npm start`
 
-**Napomena**: GitHub Pages koristi produkcijski backend URL (Render). Za lokalni development koristi `localhost:4000`.
+## 📱 Live Demo
 
-Ako build ne učita API podatke, provjeri CORS i BASE_URL u `services/api.js`.
+**🌐 Web Application:** [https://adis992.github.io/my-notify-trading-bot/](https://adis992.github.io/my-notify-trading-bot/)
 
-## 🔧 Čišćenje logova
+**🔗 API Backend:** [https://my-notify-trading-bot.onrender.com/](https://my-notify-trading-bot.onrender.com/)
 
-Manualno:
+### First-Time Access
+> ⚠️ **Important**: The backend uses Render's free tier, which hibernates after 15 minutes of inactivity. The first request may take 30-60 seconds to wake up the server. Subsequent requests will be instant.
 
-```text
-DELETE /api/logs
+## 📊 API Endpoints
+
+### Market Data
+- `GET /api/market-data` - Real-time cryptocurrency prices and indicators
+- `GET /api/trade-history` - Historical trade data and analysis
+- `GET /api/profit-summary` - P&L calculations and performance metrics
+- `GET /health` - Backend health check and status
+
+### Response Format
+```json
+{
+  "success": true,
+  "data": {
+    "symbol": "BTCUSDT",
+    "price": "43250.50",
+    "change24h": "2.45",
+    "volume": "1,234,567",
+    "rsi": 65.2,
+    "macd": {
+      "macd": 123.45,
+      "signal": 98.76,
+      "histogram": 24.69
+    }
+  },
+  "timestamp": "2025-09-10T12:00:00Z"
+}
 ```
 
-Automatski se režu najstariji zapisi kada broj prijeđe 1000.
+## 🔧 Configuration
 
-## 🔐 .env Napomena
+### Environment Variables
 
-Trenutno nije potreban `.env` (javni endpointi). Ako kasnije koristiš privatne Binance ključeve:
-
+**Backend (.env):**
 ```env
-BINANCE_API_KEY=...
-BINANCE_SECRET=...
+PORT=4000
+NODE_ENV=production
+BINANCE_API_URL=https://api.binance.com
 ```
 
-Nemoj ih committati – dodaj u `.gitignore`.
-
-## 📂 Struktura projekta (skraćeno)
-
-```text
-backend/
-  server.js
-frontend/
-  src/
-    components/
-    services/api.js
-    logs/
+**Frontend (package.json):**
+```json
+{
+  "homepage": "https://adis992.github.io/my-notify-trading-bot"
+}
 ```
 
-## 🧪 Ideje za poboljšanja
+## 🛠️ Development
 
-- Socket stream za real-time cijene
-- Persistencija logova (Mongo / Postgres)
-- Autentikacija + vlastite strategije
-- UI filtriranje i sortiranje tablica
+### Project Structure
+```
+my-notify-trading-bot/
+├── frontend/                 # React frontend application
+│   ├── src/
+│   │   ├── components/      # React components
+│   │   ├── services/        # API services
+│   │   └── styles/          # CSS styles
+│   ├── public/              # Static assets
+│   └── build/               # Production build
+├── backend/                 # Node.js backend API
+│   ├── server.js           # Express server
+│   └── package.json        # Backend dependencies
+└── README.md               # This file
+```
+
+### Key Components
+- **BotTable.js**: Main trading interface with real-time data
+- **api.js**: API service with retry logic and error handling
+- **server.js**: Express backend with Binance API integration
+
+## 🔒 Security & Limitations
+
+### Security Features
+- ✅ Read-only Binance API access (no trading keys required)
+- ✅ CORS protection configured
+- ✅ No sensitive data storage
+- ✅ Public API endpoints only
+
+### Current Limitations
+- 📊 **Demo Mode**: Currently displays real market data without actual trading
+- ⏱️ **Rate Limits**: Binance API rate limiting applies
+- 🆓 **Free Hosting**: Backend may experience cold starts on Render free tier
+- � **Mobile**: Optimized for desktop, mobile experience may vary
 
 ## 🤝 Contributing
 
-Fork > Branch > Commit > Pull Request.
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## 📬 Kontakt
+## 📄 License
 
-Ako imaš ideju ili bug: otvori Issue na GitHubu.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-Sretno i dobar profit! 💹
+## 🆘 Support
+
+### Common Issues
+
+**"Cannot connect to trading backend"**
+- Backend is waking up from hibernation (wait 30-60 seconds)
+- Check if backend URL is accessible: https://my-notify-trading-bot.onrender.com/health
+
+**Slow initial loading**
+- First request to Render free tier takes time
+- Use the refresh button to retry connection
+
+**Data not updating**
+- Check browser console for API errors
+- Verify network connectivity
+- Backend may be under heavy load
+
+### Contact
+- 📧 **Issues**: [GitHub Issues](https://github.com/adis992/my-notify-trading-bot/issues)
+- 💬 **Discussions**: [GitHub Discussions](https://github.com/adis992/my-notify-trading-bot/discussions)
+
+---
+
+**⚡ Built with passion for crypto trading and modern web technologies**
