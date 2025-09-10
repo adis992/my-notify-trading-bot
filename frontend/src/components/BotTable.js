@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import { fetchMarketData, fetchLogs, fetchTradeHistory } from '../services/api';
 
 function BotTable() {
   const [activeTab, setActiveTab] = useState('market');
@@ -23,18 +23,14 @@ function BotTable() {
 
   const fetchAll= async()=>{
     try{
-      const r1 = await axios.get(`http://localhost:4000/api/getAllIndicators?coin=${selectedCoin}`);
-      if(r1.data.success){
-        setMarketData(r1.data.data||[]);
-      }
-      const r2= await axios.get('http://localhost:4000/api/logs');
-      if(r2.data.success){
-        setLogs(r2.data.logs||[]);
-      }
-      const r3= await axios.get('http://localhost:4000/api/tradeHistory');
-      if(r3.data.success){
-        setTradeHistory(r3.data.trades||[]);
-      }
+      const marketDataResult = await fetchMarketData(selectedCoin);
+      setMarketData(marketDataResult || []);
+      
+      const logsResult = await fetchLogs();
+      setLogs(logsResult || []);
+      
+      const tradesResult = await fetchTradeHistory();
+      setTradeHistory(tradesResult || []);
     }catch(err){
       console.error(err);
     }
@@ -134,6 +130,22 @@ function BotTable() {
 
       <div style={{ width:'90%', margin:'0 auto', padding:'20px'}}>
         <h2 style={{ textAlign:'center'}}>Trade Panel</h2>
+
+        {/* Demo mode banner */}
+        {window.location.hostname.includes('github.io') && (
+          <div style={{ 
+            background: '#ff6b35', 
+            color: 'white', 
+            padding: '12px', 
+            margin: '15px 0', 
+            borderRadius: '6px', 
+            textAlign: 'center',
+            fontSize: '14px',
+            fontWeight: 'bold'
+          }}>
+            🎯 Demo mode - Showing simulated data for GitHub Pages deployment
+          </div>
+        )}
 
         <div style={{ textAlign:'center', marginBottom:'20px'}}>
           <button style={tabBtnStyle('market')} onClick={()=>setActiveTab('market')}>MARKET</button>

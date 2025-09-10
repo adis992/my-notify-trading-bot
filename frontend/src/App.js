@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import { fetchMarketData } from './services/api';
 import './BotTable.css'; // CSS u kojem ćemo doraditi tamni izgled i centriranje
 
 function App() {
   const [marketData, setMarketData] = useState([]);
   const [selectedCoin, setSelectedCoin] = useState('solana'); // npr. default SOLANA
+  const [isLoading, setIsLoading] = useState(false);
 
   const coins = [
     'bitcoin',
@@ -21,14 +22,11 @@ function App() {
 
   useEffect(() => {
     const fetchData = async () => {
+      setIsLoading(true);
       try {
-        const response = await axios.get(
-          `http://localhost:4000/api/getAllIndicators?coin=${selectedCoin}`
-        );
-        if (response.data.success) {
-          // Uzimamo originalne podatke...
-          const rawData = response.data.data;
-
+        const rawData = await fetchMarketData(selectedCoin);
+        
+        if (rawData && rawData.length > 0) {
           // ...i dopunjavamo logiku za entry, SL i TP
           const processed = rawData.map((item) => {
             const price = parseFloat(item.price);
@@ -102,6 +100,8 @@ function App() {
         }
       } catch (error) {
         console.error('Error fetching data', error);
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -113,15 +113,32 @@ function App() {
   return (
     <div className="bot-container">
       <h2 style={{ textAlign: 'center', marginBottom: 20 }}>Trade Panel</h2>
+      
+      {/* Demo mode banner */}
+      {window.location.hostname.includes('github.io') && (
+        <div style={{ 
+          background: '#ff6b35', 
+          color: 'white', 
+          padding: '10px', 
+          margin: '10px 0', 
+          borderRadius: '5px', 
+          textAlign: 'center',
+          fontSize: '14px'
+        }}>
+          🎯 Demo mode - Showing simulated data for GitHub Pages
+        </div>
+      )}
+      
       <div className="coin-selector">
         <label>Coin: </label>
-        <select onChange={(e) => setSelectedCoin(e.target.value)} value={selectedCoin}>
+        <select onChange={(e) => setSelectedCoin(e.target.value)} value={selectedCoin} disabled={isLoading}>
           {coins.map((coin) => (
             <option key={coin} value={coin}>
               {coin.toUpperCase()}
             </option>
           ))}
         </select>
+        {isLoading && <span style={{ marginLeft: '10px' }}>Loading...</span>}
       </div>
 
       {/* --- MARKET TABLE --- */}
