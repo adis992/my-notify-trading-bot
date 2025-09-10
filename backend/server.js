@@ -77,64 +77,121 @@ function createNeutralResult(timeframe, errorReason = 'No data') {
   };
 }
 
-// Fallback price fetcher using different API
+// Fallback price fetcher using different Binance endpoints
 async function getFallbackPrice(symbol) {
   try {
-    // Try alternative Binance endpoint
+    // Try Binance ticker endpoint first
     const tickerUrl = `https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`;
     const response = await axios.get(tickerUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json'
+        'User-Agent': 'Mozilla/5.0 (compatible; TradingBot/1.0)',
+        'Accept': 'application/json',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive'
       },
-      timeout: 5000
+      timeout: 15000
     });
     return parseFloat(response.data.price);
   } catch (error) {
-    // If even this fails, return mock price based on symbol
-    const mockPrices = {
-      'BTCUSDT': 43250,
-      'ETHUSDT': 2650,
-      'SOLUSDT': 145,
-      'ADAUSDT': 0.45,
-      'DOGEUSDT': 0.12,
-      'XRPUSDT': 0.58,
-      'LTCUSDT': 72,
-      'DOTUSDT': 4.2,
-      'LINKUSDT': 14.5,
-      'AVAXUSDT': 28
-    };
-    return mockPrices[symbol] || 100;
+    console.error('Ticker API also failed:', error.response?.status, error.message);
+    
+    // Try different Binance endpoint
+    try {
+      const priceUrl = `https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`;
+      const resp = await axios.get(priceUrl, {
+        headers: {
+          'User-Agent': 'curl/7.68.0',
+          'Accept': '*/*'
+        },
+        timeout: 10000
+      });
+      return parseFloat(resp.data.lastPrice);
+    } catch (secondError) {
+      console.error('All Binance endpoints failed:', secondError.response?.status);
+      throw new Error(`All Binance APIs failed for ${symbol}`);
+    }
   }
 }
 
 app.get('/api/getAllIndicators', async (req, res) => {
+  console.log('🚀 getAllIndicators called at:', new Date().toISOString());
+  
   try {
     const coin = (req.query.coin || 'bitcoin').toLowerCase();
     const symbol = BINANCE_SYMBOLS[coin];
+    
+    console.log('📊 Processing:', coin, '→', symbol);
+    
     if (!symbol) {
+      console.error('❌ Unknown coin:', coin);
       return res.status(400).json({ success:false, error:'Nepoznat coin' });
     }
 
     const results = [];
     for (const tf of TIMEFRAMES) {
       try {
-        const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${tf}&limit=100`;
+        // Try multiple Binance endpoints for REAL data
+        let klines = null;
+        let attempts = 0;
+        const maxAttempts = 3;
         
-        // Enhanced headers for Binance API
-        const resp = await axios.get(url, {
-          headers: {
-            'User-Agent': 'Trading-Bot/1.0',
-            'Accept': 'application/json',
-            'Cache-Control': 'no-cache'
-          },
-          timeout: 10000 // 10 second timeout
-        });
-        
-        const klines = resp.data || [];
+        while (!klines && attempts < maxAttempts) {
+          attempts++;
+          
+          try {
+            const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${tf}&limit=100`;
+            
+            // Enhanced headers for Binance API
+            const resp = await axios.get(url, {
+              headers: {
+                'User-Agent': attempts === 1 ? 'Mozilla/5.0 (compatible; TradingBot/1.0)' : 
+                             attempts === 2 ? 'curl/7.68.0' : 'PostmanRuntime/7.26.8',
+                'Accept': 'application/json',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Cache-Control': 'no-cache'
+              },
+              timeout: 15000 + (attempts * 5000) // Increase timeout per attempt
+            });
+            
+            klines = resp.data || [];
+            console.log(`✅ SUCCESS: Got ${klines.length} klines for ${symbol} ${tf} on attempt ${attempts}`);
+            
+          } catch (attemptError) {
+            console.log(`❌ Attempt ${attempts} failed for ${symbol} ${tf}:`, attemptError.response?.status);
+            if (attempts === maxAttempts) {
+              throw attemptError; // Throw on final attempt
+            }
+            // Wait before retry
+            await new Promise(resolve => setTimeout(resolve, 2000 * attempts));
+          }
+        }
 
-        if (!klines.length) {
-          results.push(createNeutralResult(tf));
+        if (!klines || !klines.length) {
+          console.error(`⚠️ WARNING: No klines data received for ${symbol} ${tf}`);
+          results.push({
+            timeframe: tf,
+            price: 0,
+            finalSignal: 'NO_DATA',
+            buyConfidence: '0%',
+            sellConfidence: '0%',
+            entryPrice: '-',
+            stopLoss: '-',
+            takeProfit: '-',
+            expectedMoveUp: '-',
+            expectedMoveDown: '-',
+            rsi: 0,
+            macd: { MACD: 0, signal: 0, histogram: 0 },
+            predictedPrice: 0,
+            timeframeChange: '0%',
+            error: 'NO KLINES DATA FROM BINANCE'
+          });
+          continue;
+        }
+
+        // Validate klines data structure
+        if (!Array.isArray(klines) || !klines[0] || klines[0].length < 5) {
+          console.error(`⚠️ WARNING: Invalid klines structure for ${symbol} ${tf}`);
           continue;
         }
 
@@ -257,11 +314,13 @@ app.get('/api/getAllIndicators', async (req, res) => {
       
       let errorReason = 'API Error';
       if (apiError.response?.status === 451) {
-        errorReason = 'Blocked by region (451) - Using fallback data';
+        errorReason = 'Blocked by region (451) - Trying fallback...';
         
-        // Try alternative approach with simplified data
+        // Try alternative Binance endpoints for REAL data
         try {
           const fallbackPrice = await getFallbackPrice(symbol);
+          
+          // If we get real price, create minimal but REAL result
           results.push({
             timeframe: tf,
             price: fallbackPrice,
@@ -277,10 +336,28 @@ app.get('/api/getAllIndicators', async (req, res) => {
             macd: { MACD: 0, signal: 0, histogram: 0 },
             predictedPrice: fallbackPrice,
             timeframeChange: '0%',
-            note: 'Fallback data - Limited functionality'
+            note: 'Real price, limited indicators due to API restrictions'
           });
         } catch (fallbackError) {
-          results.push(createNeutralResult(tf, errorReason));
+          // If ALL Binance endpoints fail, throw error instead of mock data
+          console.error('ALL BINANCE ENDPOINTS FAILED FOR', symbol);
+          results.push({
+            timeframe: tf,
+            price: 0,
+            finalSignal: 'ERROR',
+            buyConfidence: '0%',
+            sellConfidence: '0%',
+            entryPrice: '-',
+            stopLoss: '-',
+            takeProfit: '-',
+            expectedMoveUp: '-',
+            expectedMoveDown: '-',
+            rsi: 0,
+            macd: { MACD: 0, signal: 0, histogram: 0 },
+            predictedPrice: 0,
+            timeframeChange: '0%',
+            error: 'ALL BINANCE APIs BLOCKED - NO REAL DATA AVAILABLE'
+          });
         }
       } else if (apiError.response?.status) {
         errorReason = `HTTP ${apiError.response.status}`;
@@ -291,10 +368,16 @@ app.get('/api/getAllIndicators', async (req, res) => {
     }
     }
 
+    console.log('✅ Successfully processed', results.length, 'timeframes for', symbol);
     return res.json({ success:true, data:results });
   } catch(err){
-    console.error(err);
-    return res.status(500).json({ success:false, error:err.message });
+    console.error('💥 CRITICAL ERROR in getAllIndicators:', err);
+    console.error('Error details:', err.response?.status, err.message);
+    return res.status(500).json({ 
+      success:false, 
+      error: `Backend error: ${err.message}`,
+      details: err.response?.status ? `HTTP ${err.response.status}` : 'Unknown error'
+    });
   }
 });
 
