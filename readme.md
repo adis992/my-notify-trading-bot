@@ -1,44 +1,4 @@
-Trade Bot Panel
-Ovo je React + Node.js projekt za prikaz i analizu kripto indikatora s Binance javnog API-ja.
-Frontend prikazuje dvostruke tablice (Market i Indikatori) te tabove za Logs i Trade History.
-Backend dohvaća podatke s Binancea i računa različite indikatore (RSI, MACD, predikciju te BUY/SELL signale).
-
-Sadržaj
-Karakteristike
-Pokretanje (lokalno)
-Instalacija
-Pokretanje servera
-Pokretanje React aplikacije
-Deploy
-Brisanje logova
-Napomena o .env
-Kontakt
-Karakteristike
-Backend (server.js)
-Dohvaća javne klines podatke s Binancea (/api/v3/klines) za odabrane coine i timeframe-ove.
-Računa RSI, MACD, BUY/SELL signale, predikciju i drži logove u memoriji.
-Ograničava broj logova na 1000 zapisa (kako memorija ne bi nekontrolirano rasla).
-Frontend (BotTable.js / MainPanel)
-Nudi odabir coina (npr. BTC, ETH, SOL, …).
-Prikazuje trenutnu cijenu, entry/stop/TP, RAST/PAD, finalni signal (BUY/SELL/NEUTRAL).
-Druga tablica prikazuje postotne vrijednosti: BUY%, SELL%, RSI, MACD, histogram, predikciju i timeframe.
-Tabovi:
-MARKET (dvije tablice)
-LOGS (povijest signala)
-HISTORY (trade povijest)
-Predikcija
-Uvijek izračunata kao broj.
-Zelena ako je iznad trenutne cijene.
-Crvena ako je ispod trenutne cijene.
-Responzivnost
-Osnovna responzivnost uz media query (max-width: 600px) za bolje prikazivanje na mobilnim uređajima.
-Tablice imaju horizontalni scroll na manjim zaslonima.
-Pokretanje (lokalno)
-Instalacija
-Backend
-bash
-Kopiraj
-cd backend  # (ako je backend u posebnom folderu)
+<<<<<<< HEAD
 npm install
 Frontend
 bash
@@ -91,3 +51,128 @@ Slobodno ih dodaj kao Issues na GitHub repozitorij.
 Možeš napraviti i fork projekta, pa poslati pull request s poboljšanjima.
 Sretno s razvojem i korištenjem Trade Bot Panel projekta!
 Ako imaš bilo kakvih pitanja, javi se!
+=======
+# Trade Bot Panel
+
+React + Node.js aplikacija za praćenje kripto tržišta i indikatora koristeći javni Binance API.
+
+## 🧩 Pregled
+
+Frontend prikazuje dvije glavne tablice (Market i Indicators) + tabove za Logs i Trade History.
+Backend dohvaća klines podatke, računa indikatore (RSI, MACD), generira BUY/SELL signale i vodi memorijske logove.
+
+## ✨ Glavne karakteristike
+
+Backend (`backend/server.js`):
+
+- Dohvaća /api/v3/klines (Binance)
+- Računa RSI, MACD, histogram, BUY/SELL signale, predikciju
+- Ograničava logove na max 1000 unosa
+
+Frontend (`frontend/src`):
+
+- Odabir coina i timeframe-ova
+- Market tablica (trenutna cijena, entry, stop, TP, signal)
+- Indicators tablica (BUY%, SELL%, RSI, MACD, histogram, predikcija)
+- Tabs: MARKET | LOGS | HISTORY
+- Osnovna responzivnost + horizontalni scroll na malim ekranima
+
+## 🛠 Lokalno pokretanje
+
+1. Backend instalacija
+
+```bash
+cd backend
+npm install
+npm start   # pokreće server na http://localhost:4000
+```
+
+1. Frontend instalacija
+
+```bash
+cd frontend
+npm install
+npm start   # pokreće React dev server (default http://localhost:3000)
+```
+
+1. Korištenje
+
+Otvoriti browser: <http://localhost:3000> (frontend poziva backend na portu 4000).
+
+## 🚀 Deploy
+
+### Backend
+
+Hostati na: Render, Railway, Fly.io, Koyeb ili Vercel Serverless (uz prilagodbu). Nakon deploya, zamijeni `http://localhost:4000` bazni URL u frontend `services/api.js` ako je drugačiji.
+
+### Frontend (GitHub Pages)
+
+Konfigurirano u `frontend/package.json`:
+
+```json
+"homepage": "https://adis992.github.io/my-notify-trading-bot",
+"predeploy": "npm run build",
+"deploy": "gh-pages -d build"
+```
+
+Koraci:
+
+```bash
+cd frontend
+npm install        # instalira i gh-pages (ako već nije)
+npm run deploy
+```
+
+Stranica će biti dostupna na: <https://adis992.github.io/my-notify-trading-bot>
+
+Ako build ne učita API podatke, provjeri CORS i BASE_URL u `services/api.js`.
+
+## 🔧 Čišćenje logova
+
+Manualno:
+
+```text
+DELETE /api/logs
+```
+
+Automatski se režu najstariji zapisi kada broj prijeđe 1000.
+
+## 🔐 .env Napomena
+
+Trenutno nije potreban `.env` (javni endpointi). Ako kasnije koristiš privatne Binance ključeve:
+
+```env
+BINANCE_API_KEY=...
+BINANCE_SECRET=...
+```
+
+Nemoj ih committati – dodaj u `.gitignore`.
+
+## 📂 Struktura projekta (skraćeno)
+
+```text
+backend/
+	server.js
+frontend/
+	src/
+		components/
+		services/api.js
+		logs/
+```
+
+## 🧪 Ideje za poboljšanja
+
+- Socket stream za real-time cijene
+- Persistencija logova (Mongo / Postgres)
+- Autentikacija + vlastite strategije
+- UI filtriranje i sortiranje tablica
+
+## 🤝 Contributing
+
+Fork > Branch > Commit > Pull Request.
+
+## 📬 Kontakt
+
+Ako imaš ideju ili bug: otvori Issue na GitHubu.
+
+Sretno i dobar profit! 💹

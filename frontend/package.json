@@ -2,6 +2,7 @@
   "name": "my-notify-bot-frontend",
   "version": "1.0.0",
   "private": true,
+  "homepage": "https://adis992.github.io/my-notify-trading-bot",
   "dependencies": {
     "axios": "latest",
     "react": "latest",
@@ -9,9 +10,14 @@
     "react-dom": "latest",
     "react-scripts": "5.0.1"
   },
+  "devDependencies": {
+    "gh-pages": "^6.0.0"
+  },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build"
+    "build": "react-scripts build",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d build"
   },
   "browserslist": {
     "production": [
