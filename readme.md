@@ -53,9 +53,21 @@ React + Node.js aplikacija za praćenje kripto tržišta i indikatora koristeći
 
 ## 🚀 Live Demo
 
-**GitHub Pages Demo**: <https://adis992.github.io/my-notify-trading-bot>
+**GitHub Pages**: <https://adis992.github.io/my-notify-trading-bot>
 
-> **Demo Mode**: Na GitHub Pages se koriste simulirani podaci jer se radi o statičkom hostingu. Za lokalni development, aplikacija će pokušati spojiti na backend server na portu 4000.
+> **REAL-TIME TRADING**: Aplikacija koristi pravi Binance API za live trading podatke. Backend je hostiran na Render-u za 24/7 dostupnost.
+
+## 🏗️ Backend Deployment (Render)
+
+1. Fork ovaj repo
+2. Kreiraj account na [Render.com](https://render.com)
+3. Novi Web Service > Connect GitHub > Odaberi svoj fork
+4. Postavke:
+   - **Build Command**: `cd backend && npm install`
+   - **Start Command**: `cd backend && npm start`
+   - **Environment**: Node.js
+   - **Instance Type**: Free
+5. Deploy!
 
 ## 🧩 Pregled
 
@@ -126,7 +138,7 @@ npm run deploy
 
 Stranica će biti dostupna na: <https://adis992.github.io/my-notify-trading-bot>
 
-**Napomena**: GitHub Pages automatski koristi demo mode s generiranim podacima. Za stvarne podatke potrebno je lokalno pokretanje s backendom.
+**Napomena**: GitHub Pages koristi produkcijski backend URL (Render). Za lokalni development koristi `localhost:4000`.
 
 Ako build ne učita API podatke, provjeri CORS i BASE_URL u `services/api.js`.
 

@@ -9,6 +9,8 @@ function BotTable() {
   const [selectedCoin, setSelectedCoin] = useState(
     localStorage.getItem('selectedCoin') || 'solana'
   );
+  const [isLoading, setIsLoading] = useState(false);
+  const [connectionError, setConnectionError] = useState(null);
 
   const coins = [
     'bitcoin','ethereum','solana','cardano','dogecoin',
@@ -22,6 +24,8 @@ function BotTable() {
   },[selectedCoin]);
 
   const fetchAll= async()=>{
+    setIsLoading(true);
+    setConnectionError(null);
     try{
       const marketDataResult = await fetchMarketData(selectedCoin);
       setMarketData(marketDataResult || []);
@@ -32,7 +36,10 @@ function BotTable() {
       const tradesResult = await fetchTradeHistory();
       setTradeHistory(tradesResult || []);
     }catch(err){
-      console.error(err);
+      console.error('Backend connection failed:', err);
+      setConnectionError('Cannot connect to trading backend. Check if server is running.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -131,19 +138,49 @@ function BotTable() {
       <div style={{ width:'90%', margin:'0 auto', padding:'20px'}}>
         <h2 style={{ textAlign:'center'}}>Trade Panel</h2>
 
-        {/* Demo mode banner */}
-        {window.location.hostname.includes('github.io') && (
+        {/* Real-time status banner */}
+        <div style={{ 
+          background: window.location.hostname.includes('github.io') ? '#28a745' : '#007bff', 
+          color: 'white', 
+          padding: '12px', 
+          margin: '15px 0', 
+          borderRadius: '6px', 
+          textAlign: 'center',
+          fontSize: '14px',
+          fontWeight: 'bold'
+        }}>
+          {window.location.hostname.includes('github.io') 
+            ? '🚀 LIVE TRADING - Real-time Binance API data' 
+            : '💻 LOCAL DEV - Backend on localhost:4000'}
+        </div>
+
+        {/* Connection error alert */}
+        {connectionError && (
           <div style={{ 
-            background: '#ff6b35', 
+            background: '#dc3545', 
             color: 'white', 
             padding: '12px', 
             margin: '15px 0', 
             borderRadius: '6px', 
             textAlign: 'center',
-            fontSize: '14px',
-            fontWeight: 'bold'
+            fontSize: '14px'
           }}>
-            🎯 Demo mode - Showing simulated data for GitHub Pages deployment
+            ❌ {connectionError}
+          </div>
+        )}
+
+        {/* Loading indicator */}
+        {isLoading && (
+          <div style={{ 
+            background: '#ffc107', 
+            color: '#212529', 
+            padding: '8px', 
+            margin: '10px 0', 
+            borderRadius: '4px', 
+            textAlign: 'center',
+            fontSize: '12px'
+          }}>
+            ⏳ Loading real-time data...
           </div>
         )}
 

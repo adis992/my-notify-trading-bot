@@ -5,10 +5,37 @@ const axios = require('axios');
 const ti = require('technicalindicators');
 
 const app = express();
-app.use(cors());
+
+// Enhanced CORS for production
+app.use(cors({
+  origin: [
+    'http://localhost:3000',
+    'https://adis992.github.io'
+  ],
+  credentials: true
+}));
+
 app.use(express.json());
 
 const PORT = process.env.PORT || 4000;
+
+// Health check endpoint for hosting services
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'Trade Bot API is running', 
+    version: '1.0.0',
+    endpoints: ['/health', '/api/getAllIndicators', '/api/logs', '/api/tradeHistory']
+  });
+});
 
 const BINANCE_SYMBOLS = {
   bitcoin: 'BTCUSDT',
