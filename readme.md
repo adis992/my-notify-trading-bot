@@ -47,14 +47,15 @@ Ako ubuduće budeš koristio privatne ključeve (npr. za pravi trading), svakako
 Kontakt
 Ako imaš pitanja, prijedloge ili poboljšanja:
 
-Slobodno ih dodaj kao Issues na GitHub repozitorij.
-Možeš napraviti i fork projekta, pa poslati pull request s poboljšanjima.
-Sretno s razvojem i korištenjem Trade Bot Panel projekta!
-Ako imaš bilo kakvih pitanja, javi se!
-=======
 # Trade Bot Panel
 
 React + Node.js aplikacija za praćenje kripto tržišta i indikatora koristeći javni Binance API.
+
+## 🚀 Live Demo
+
+**GitHub Pages Demo**: <https://adis992.github.io/my-notify-trading-bot>
+
+> **Demo Mode**: Na GitHub Pages se koriste simulirani podaci jer se radi o statičkom hostingu. Za lokalni development, aplikacija će pokušati spojiti na backend server na portu 4000.
 
 ## 🧩 Pregled
 
@@ -125,6 +126,8 @@ npm run deploy
 
 Stranica će biti dostupna na: <https://adis992.github.io/my-notify-trading-bot>
 
+**Napomena**: GitHub Pages automatski koristi demo mode s generiranim podacima. Za stvarne podatke potrebno je lokalno pokretanje s backendom.
+
 Ako build ne učita API podatke, provjeri CORS i BASE_URL u `services/api.js`.
 
 ## 🔧 Čišćenje logova
@@ -152,12 +155,12 @@ Nemoj ih committati – dodaj u `.gitignore`.
 
 ```text
 backend/
-	server.js
+  server.js
 frontend/
-	src/
-		components/
-		services/api.js
-		logs/
+  src/
+    components/
+    services/api.js
+    logs/
 ```
 
 ## 🧪 Ideje za poboljšanja
