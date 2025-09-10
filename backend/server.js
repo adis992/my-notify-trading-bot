@@ -77,40 +77,88 @@ function createNeutralResult(timeframe, errorReason = 'No data') {
   };
 }
 
-// Fallback price fetcher using different Binance endpoints
-async function getFallbackPrice(symbol) {
+// Alternative crypto data sources when Binance is blocked
+const CRYPTO_APIS = {
+  coingecko: 'https://api.coingecko.com/api/v3',
+  coinbase: 'https://api.coinbase.com/v2',
+  kraken: 'https://api.kraken.com/0/public'
+};
+
+const SYMBOL_MAPPING = {
+  'BTCUSDT': { coingecko: 'bitcoin', coinbase: 'BTC-USD' },
+  'ETHUSDT': { coingecko: 'ethereum', coinbase: 'ETH-USD' },
+  'SOLUSDT': { coingecko: 'solana', coinbase: 'SOL-USD' },
+  'ADAUSDT': { coingecko: 'cardano', coinbase: 'ADA-USD' },
+  'DOGEUSDT': { coingecko: 'dogecoin', coinbase: 'DOGE-USD' },
+  'XRPUSDT': { coingecko: 'ripple', coinbase: 'XRP-USD' },
+  'LTCUSDT': { coingecko: 'litecoin', coinbase: 'LTC-USD' },
+  'DOTUSDT': { coingecko: 'polkadot', coinbase: 'DOT-USD' },
+  'LINKUSDT': { coingecko: 'chainlink', coinbase: 'LINK-USD' },
+  'AVAXUSDT': { coingecko: 'avalanche-2', coinbase: 'AVAX-USD' }
+};
+
+// Get real crypto data from alternative sources
+async function getRealCryptoData(symbol) {
+  const mapping = SYMBOL_MAPPING[symbol];
+  if (!mapping) {
+    throw new Error(`No mapping for ${symbol}`);
+  }
+
+  console.log(`🔄 Trying alternative APIs for ${symbol}...`);
+
+  // Try CoinGecko first (most reliable)
   try {
-    // Try Binance ticker endpoint first
-    const tickerUrl = `https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`;
-    const response = await axios.get(tickerUrl, {
+    const coingeckoId = mapping.coingecko;
+    const url = `${CRYPTO_APIS.coingecko}/simple/price?ids=${coingeckoId}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true`;
+    
+    const response = await axios.get(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; TradingBot/1.0)',
         'Accept': 'application/json',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Connection': 'keep-alive'
+        'User-Agent': 'TradingBot/1.0'
       },
       timeout: 15000
     });
-    return parseFloat(response.data.price);
-  } catch (error) {
-    console.error('Ticker API also failed:', error.response?.status, error.message);
-    
-    // Try different Binance endpoint
-    try {
-      const priceUrl = `https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`;
-      const resp = await axios.get(priceUrl, {
-        headers: {
-          'User-Agent': 'curl/7.68.0',
-          'Accept': '*/*'
-        },
-        timeout: 10000
-      });
-      return parseFloat(resp.data.lastPrice);
-    } catch (secondError) {
-      console.error('All Binance endpoints failed:', secondError.response?.status);
-      throw new Error(`All Binance APIs failed for ${symbol}`);
+
+    const data = response.data[coingeckoId];
+    if (data && data.usd) {
+      console.log(`✅ CoinGecko success for ${symbol}: $${data.usd}`);
+      return {
+        price: data.usd,
+        change24h: data.usd_24h_change || 0,
+        volume: data.usd_24h_vol || 0
+      };
     }
+  } catch (error) {
+    console.log(`❌ CoinGecko failed for ${symbol}:`, error.message);
   }
+
+  // Try Coinbase as backup
+  try {
+    const coinbaseSymbol = mapping.coinbase;
+    const url = `${CRYPTO_APIS.coinbase}/exchange-rates?currency=${coinbaseSymbol.split('-')[0]}`;
+    
+    const response = await axios.get(url, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'TradingBot/1.0'
+      },
+      timeout: 10000
+    });
+
+    const rate = response.data?.data?.rates?.USD;
+    if (rate) {
+      console.log(`✅ Coinbase success for ${symbol}: $${rate}`);
+      return {
+        price: parseFloat(rate),
+        change24h: 0, // Coinbase doesn't provide 24h change in this endpoint
+        volume: 0
+      };
+    }
+  } catch (error) {
+    console.log(`❌ Coinbase failed for ${symbol}:`, error.message);
+  }
+
+  throw new Error(`All alternative APIs failed for ${symbol}`);
 }
 
 app.get('/api/getAllIndicators', async (req, res) => {
@@ -310,36 +358,61 @@ app.get('/api/getAllIndicators', async (req, res) => {
       
     } catch (apiError) {
       // Handle individual API errors (like 451)
-      console.error(`API Error for ${tf}:`, apiError.response?.status, apiError.message);
+      console.error(`❌ Binance API Error for ${tf}:`, apiError.response?.status, apiError.message);
       
-      let errorReason = 'API Error';
-      if (apiError.response?.status === 451) {
-        errorReason = 'Blocked by region (451) - Trying fallback...';
+      // Since Binance is blocked, try alternative crypto APIs for REAL data
+      try {
+        console.log(`🔄 Binance blocked for ${tf}, trying alternative APIs...`);
+        const altData = await getRealCryptoData(symbol);
         
-        // Try alternative Binance endpoints for REAL data
-        try {
-          const fallbackPrice = await getFallbackPrice(symbol);
-          
-          // If we get real price, create minimal but REAL result
-          results.push({
-            timeframe: tf,
-            price: fallbackPrice,
-            finalSignal: 'NEUTRAL',
-            buyConfidence: '50%',
-            sellConfidence: '50%',
-            entryPrice: fallbackPrice,
-            stopLoss: (fallbackPrice * 0.98).toFixed(2),
-            takeProfit: (fallbackPrice * 1.02).toFixed(2),
-            expectedMoveUp: '2%',
-            expectedMoveDown: '2%',
-            rsi: 50,
-            macd: { MACD: 0, signal: 0, histogram: 0 },
-            predictedPrice: fallbackPrice,
-            timeframeChange: '0%',
-            note: 'Real price, limited indicators due to API restrictions'
-          });
-        } catch (fallbackError) {
-          // If ALL Binance endpoints fail, throw error instead of mock data
+        // Create result with real price from alternative API
+        const realPrice = altData.price;
+        const change24h = altData.change24h;
+        
+        results.push({
+          timeframe: tf,
+          price: realPrice,
+          finalSignal: 'NEUTRAL',
+          buyConfidence: '50%',
+          sellConfidence: '50%',
+          entryPrice: realPrice.toFixed(2),
+          stopLoss: (realPrice * 0.98).toFixed(2),
+          takeProfit: (realPrice * 1.02).toFixed(2),
+          expectedMoveUp: '2%',
+          expectedMoveDown: '2%',
+          rsi: 50, // Can't calculate without historical data
+          macd: { MACD: 0, signal: 0, histogram: 0 },
+          predictedPrice: realPrice,
+          timeframeChange: change24h ? `${change24h.toFixed(2)}%` : '0%',
+          note: `Real price from CoinGecko/Coinbase (Binance blocked)`,
+          source: 'alternative_api'
+        });
+        
+        console.log(`✅ Got real price for ${symbol} ${tf}: $${realPrice}`);
+        
+      } catch (altError) {
+        console.error(`💥 ALL APIs failed for ${symbol} ${tf}:`, altError.message);
+        
+        // If even alternative APIs fail, show clear error
+        results.push({
+          timeframe: tf,
+          price: 0,
+          finalSignal: 'ERROR',
+          buyConfidence: '0%',
+          sellConfidence: '0%',
+          entryPrice: '-',
+          stopLoss: '-',
+          takeProfit: '-',
+          expectedMoveUp: '-',
+          expectedMoveDown: '-',
+          rsi: 0,
+          macd: { MACD: 0, signal: 0, histogram: 0 },
+          predictedPrice: 0,
+          timeframeChange: '0%',
+          error: 'ALL CRYPTO APIs BLOCKED OR FAILED',
+          source: 'error'
+        });
+      }
           console.error('ALL BINANCE ENDPOINTS FAILED FOR', symbol);
           results.push({
             timeframe: tf,
@@ -354,18 +427,10 @@ app.get('/api/getAllIndicators', async (req, res) => {
             expectedMoveDown: '-',
             rsi: 0,
             macd: { MACD: 0, signal: 0, histogram: 0 },
-            predictedPrice: 0,
-            timeframeChange: '0%',
-            error: 'ALL BINANCE APIs BLOCKED - NO REAL DATA AVAILABLE'
-          });
-        }
-      } else if (apiError.response?.status) {
-        errorReason = `HTTP ${apiError.response.status}`;
-        results.push(createNeutralResult(tf, errorReason));
-      } else {
-        results.push(createNeutralResult(tf, errorReason));
+          error: 'ALL CRYPTO APIs BLOCKED OR FAILED',
+          source: 'error'
+        });
       }
-    }
     }
 
     console.log('✅ Successfully processed', results.length, 'timeframes for', symbol);
