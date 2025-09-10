@@ -25,7 +25,7 @@ function BotTable() {
     // Set up periodic connection testing
     const connectionTestInterval = setInterval(() => {
       // Only test connection if we haven't fetched recently (avoid interference)
-      if (!loading && Date.now() - lastUpdateTime > 60000) { // 1 minute since last update
+      if (!isLoading && Date.now() - lastUpdateTime > 60000) { // 1 minute since last update
         fetchAll();
       }
     }, 120000); // Test every 2 minutes
@@ -163,19 +163,19 @@ function BotTable() {
           <h2 style={{ margin: 0, flex: 1, color: '#2c3e50' }}>Live Trading Bot</h2>
           <button 
             onClick={fetchAll}
-            disabled={loading}
+            disabled={isLoading}
             style={{
               padding: '8px 16px',
-              backgroundColor: loading ? '#95a5a6' : '#3498db',
+              backgroundColor: isLoading ? '#95a5a6' : '#3498db',
               color: 'white',
               border: 'none',
               borderRadius: '4px',
-              cursor: loading ? 'not-allowed' : 'pointer',
+              cursor: isLoading ? 'not-allowed' : 'pointer',
               fontSize: '14px',
               transition: 'background-color 0.3s'
             }}
           >
-            {loading ? '⏳ Loading...' : '🔄 Refresh'}
+            {isLoading ? '⏳ Loading...' : '🔄 Refresh'}
           </button>
         </div>
 
