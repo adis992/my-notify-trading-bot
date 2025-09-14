@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { fetchMarketData, fetchLogs, fetchTradeHistory } from '../services/api';
 import TradingChart from './TradingChart';
+import Settings from './Settings';
+import { makeApiCall, getRateLimiterStatus, updateRateLimiter } from '../utils/rateLimiter';
 
 // Technical Indicators Library (frontend calculations)
 const calculateRSI = (prices, period = 14) => {
@@ -112,6 +114,8 @@ function BotTable() {
   const [connectionError, setConnectionError] = useState(null);
   const [lastUpdateTime, setLastUpdateTime] = useState(null);
   const [localAnalysis, setLocalAnalysis] = useState([]);
+  const [showSettings, setShowSettings] = useState(false);
+  const [rateLimitStatus, setRateLimitStatus] = useState(null);
 
   const coins = [
     'bitcoin','ethereum','solana','cardano','dogecoin',
@@ -246,33 +250,65 @@ function BotTable() {
     return analysis;
   };
 
-  // Fetch ETF data (top 100 transactions)
+  // Fetch ETF data (top 100 transactions) with configurable API and rate limiting
   const fetchETFData = async () => {
     try {
-      const etfResponse = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=volume_desc&per_page=100&page=1');
-      const etfJson = await etfResponse.json();
+      const apiUrl = localStorage.getItem('trading_api_url') || 'https://api.coingecko.com/api/v3';
+      const apiKey = localStorage.getItem('trading_api_key') || '';
       
-      const processedETF = etfJson.map(coin => ({
-        symbol: coin.symbol.toUpperCase(),
-        name: coin.name,
-        price: coin.current_price,
-        volume24h: coin.total_volume,
-        marketCap: coin.market_cap,
-        change24h: coin.price_change_percentage_24h,
-        volumeRank: coin.market_cap_rank,
-        supply: coin.circulating_supply,
-        maxSupply: coin.max_supply,
-        ath: coin.ath,
-        athDate: coin.ath_date,
-        lastUpdate: new Date().toLocaleTimeString()
-      }));
+      // Update rate limiter for current API
+      updateRateLimiter(apiUrl);
+      
+      await makeApiCall(async () => {
+        // Build headers
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+        if (apiKey && apiUrl.includes('pro-api.coingecko.com')) {
+          headers['x-cg-pro-api-key'] = apiKey;
+        }
 
-      setEtfData(processedETF);
-      LocalDB.save('etf_data', processedETF);
+        const etfResponse = await fetch(`${apiUrl}/coins/markets?vs_currency=usd&order=volume_desc&per_page=100&page=1`, {
+          headers
+        });
+        
+        if (!etfResponse.ok) {
+          throw new Error(`API Error: ${etfResponse.status} - ${etfResponse.statusText}`);
+        }
+        
+        const etfJson = await etfResponse.json();
+        
+        const processedETF = etfJson.map(coin => ({
+          symbol: coin.symbol.toUpperCase(),
+          name: coin.name,
+          price: coin.current_price,
+          volume24h: coin.total_volume,
+          marketCap: coin.market_cap,
+          change24h: coin.price_change_percentage_24h,
+          volumeRank: coin.market_cap_rank,
+          supply: coin.circulating_supply,
+          maxSupply: coin.max_supply,
+          ath: coin.ath,
+          athDate: coin.ath_date,
+          lastUpdate: new Date().toLocaleTimeString()
+        }));
+
+        setEtfData(processedETF);
+        LocalDB.save('etf_data', processedETF);
+        
+        return processedETF;
+      }, (error) => {
+        setConnectionError(`ETF API Error: ${error}`);
+      });
+      
     } catch (error) {
       console.error('ETF data fetch error:', error);
+      setConnectionError(`ETF API Error: ${error.message}`);
       const cached = LocalDB.get('etf_data');
       if (cached) setEtfData(cached);
+    } finally {
+      // Update rate limit status
+      setRateLimitStatus(getRateLimiterStatus());
     }
   };
 
@@ -282,8 +318,18 @@ function BotTable() {
       setLocalAnalysis(history);
     };
 
+    const updateRateStatus = () => {
+      setRateLimitStatus(getRateLimiterStatus());
+    };
+
     loadLocalAnalysis();
-    const interval = setInterval(loadLocalAnalysis, 30000);
+    updateRateStatus();
+    
+    const interval = setInterval(() => {
+      loadLocalAnalysis();
+      updateRateStatus();
+    }, 30000);
+    
     return () => clearInterval(interval);
   }, [selectedCoin]);
 
@@ -330,7 +376,8 @@ function BotTable() {
     };
 
     loadData();
-    const interval = setInterval(loadData, 60000); // Update every minute
+    const refreshInterval = localStorage.getItem('trading_refresh_interval') || '60';
+    const interval = setInterval(loadData, parseInt(refreshInterval) * 1000); // Use configurable interval
     return () => clearInterval(interval);
   }, [selectedCoin, activeTab]);
 
@@ -434,6 +481,26 @@ function BotTable() {
       <div style={{ width:'90%', margin:'0 auto', padding:'20px'}}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
           <h2 style={{ margin: 0, flex: 1, color: '#2c3e50' }}>Live Trading Bot</h2>
+          
+          {/* Settings Button */}
+          <button 
+            onClick={() => setShowSettings(true)}
+            style={{
+              padding: '8px 12px',
+              backgroundColor: '#9b59b6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              marginRight: '10px',
+              transition: 'background-color 0.3s'
+            }}
+            title="Settings"
+          >
+            ⚙️
+          </button>
+          
           <button 
             onClick={fetchAll}
             disabled={isLoading}
@@ -466,9 +533,34 @@ function BotTable() {
           {connectionError ? '❌ Connection Error' :
            isWakingUp ? '⏳ Waking up server...' :
            window.location.hostname.includes('github.io') 
-            ? `🚀 LIVE TRADING - Real-time Binance API ${lastUpdateTime ? `(Updated: ${new Date(lastUpdateTime).toLocaleTimeString()})` : ''}` 
+            ? `🚀 LIVE TRADING - Real-time Crypto API ${lastUpdateTime ? `(Updated: ${new Date(lastUpdateTime).toLocaleTimeString()})` : ''}` 
             : '💻 LOCAL DEV - Backend on localhost:4000'}
         </div>
+
+        {/* Rate Limit Status */}
+        {rateLimitStatus && (
+          <div style={{
+            background: rateLimitStatus.remainingCalls < 10 ? '#e74c3c' : rateLimitStatus.remainingCalls < 50 ? '#f39c12' : '#27ae60',
+            color: '#fff',
+            padding: '8px 15px',
+            margin: '10px 0',
+            borderRadius: '6px',
+            fontSize: '12px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <span>
+              📊 API Calls: {rateLimitStatus.remainingCalls}/{rateLimitStatus.maxCalls} remaining
+            </span>
+            <span>
+              {rateLimitStatus.waitTime > 0 ? 
+                `⏳ Reset in: ${Math.ceil(rateLimitStatus.waitTime/1000)}s` : 
+                '✅ Ready'
+              }
+            </span>
+          </div>
+        )}
 
         {/* Connection error alert */}
         {connectionError && (
@@ -1125,6 +1217,12 @@ function BotTable() {
         )}
 
       </div>
+      
+      {/* Settings Modal */}
+      <Settings 
+        isOpen={showSettings} 
+        onClose={() => setShowSettings(false)} 
+      />
     </>
   );
 }
