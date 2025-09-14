@@ -10,34 +10,34 @@ const Settings = ({ isOpen, onClose }) => {
   // API URL presets
   const apiPresets = [
     {
-      name: 'CoinGecko (Default)',
+      name: 'Local Backend (Development)',
+      url: 'http://localhost:4000',
+      description: 'Local development server with CoinGecko integration',
+      requiresKey: false
+    },
+    {
+      name: 'Production Backend (Recommended)',
+      url: 'https://my-notify-trading-bot-coingecko.onrender.com',
+      description: 'Updated backend server with CoinGecko API integration',
+      requiresKey: false
+    },
+    {
+      name: 'Legacy Backend (May not work)',
+      url: 'https://my-notify-trading-bot.onrender.com',
+      description: 'Old backend with Binance API - may return fallback data',
+      requiresKey: false
+    },
+    {
+      name: 'CoinGecko Direct (CORS Issues)',
       url: 'https://api.coingecko.com/api/v3',
-      description: 'Free API, 100 calls/minute limit',
-      requiresKey: false
-    },
-    {
-      name: 'CoinGecko Pro',
-      url: 'https://pro-api.coingecko.com/api/v3',
-      description: 'Paid API, higher limits',
-      requiresKey: true
-    },
-    {
-      name: 'Coinbase Advanced',
-      url: 'https://api.exchange.coinbase.com',
-      description: 'Real exchange data',
-      requiresKey: false
-    },
-    {
-      name: 'Custom Backend',
-      url: 'https://my-notify-trading-bot-backend.onrender.com/api',
-      description: 'Your custom backend',
+      description: 'Free API, 100 calls/minute limit - May not work due to CORS',
       requiresKey: false
     }
   ];
 
   useEffect(() => {
     // Load saved settings
-    const savedApiUrl = localStorage.getItem('trading_api_url') || 'https://api.coingecko.com/api/v3';
+    const savedApiUrl = localStorage.getItem('trading_api_url') || 'http://localhost:4000';
     const savedApiKey = localStorage.getItem('trading_api_key') || '';
     const savedRefreshInterval = localStorage.getItem('trading_refresh_interval') || '60';
     const savedMaxHistoryDays = localStorage.getItem('trading_max_history_days') || '7';

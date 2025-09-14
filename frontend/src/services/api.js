@@ -5,11 +5,11 @@ const getApiUrls = () => {
   const customApiUrl = localStorage.getItem('trading_api_url');
   
   // Default backend URLs
-  const PRODUCTION_API_URL = "https://my-notify-trading-bot.onrender.com";
+  const PRODUCTION_API_URL = "https://my-notify-trading-bot-coingecko.onrender.com";
   const LOCAL_API_URL = "http://localhost:4000";
   
   // If custom API is set and it's our backend, use it
-  if (customApiUrl && customApiUrl.includes('my-notify-trading-bot')) {
+  if (customApiUrl && (customApiUrl.includes('my-notify-trading-bot') || customApiUrl.includes('localhost'))) {
     return customApiUrl;
   }
   
