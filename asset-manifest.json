@@ -1,10 +1,10 @@
 {
   "files": {
-    "main.js": "/my-notify-trading-bot/static/js/main.e359072b.js",
+    "main.js": "/my-notify-trading-bot/static/js/main.cae4ce7d.js",
     "index.html": "/my-notify-trading-bot/index.html",
-    "main.e359072b.js.map": "/my-notify-trading-bot/static/js/main.e359072b.js.map"
+    "main.cae4ce7d.js.map": "/my-notify-trading-bot/static/js/main.cae4ce7d.js.map"
   },
   "entrypoints": [
-    "static/js/main.e359072b.js"
+    "static/js/main.cae4ce7d.js"
   ]
 }
