@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fetchMarketData, fetchLogs, fetchTradeHistory } from '../services/api';
+import TradingChart from './TradingChart';
 
 // Technical Indicators Library (frontend calculations)
 const calculateRSI = (prices, period = 14) => {
@@ -710,10 +711,37 @@ function BotTable() {
                 </div>
               ))}
               
-              {/* Histogram Chart for Selected Coin */}
+              {/* Advanced Trading Charts */}
+              <TradingChart 
+                title={`📊 ${selectedCoin.toUpperCase()} - Confidence Trend (7 Days)`}
+                type="histogram"
+                data={localAnalysis
+                  .filter(a => a.coin === selectedCoin)
+                  .slice(-7)
+                  .map(analysis => ({
+                    value: analysis.confidence,
+                    label: new Date(analysis.timestamp).toLocaleDateString('sr-RS', { month: 'short', day: 'numeric' })
+                  }))
+                }
+              />
+              
+              <TradingChart 
+                title={`📈 ${selectedCoin.toUpperCase()} - Price Prediction vs Reality`}
+                type="line"
+                data={localAnalysis
+                  .filter(a => a.coin === selectedCoin)
+                  .slice(-10)
+                  .map(analysis => ({
+                    value: analysis.price,
+                    label: new Date(analysis.timestamp).toLocaleTimeString('sr-RS', { hour: '2-digit', minute: '2-digit' })
+                  }))
+                }
+              />
+
+              {/* Traditional histogram for comparison */}
               <div style={{ marginTop: '20px' }}>
                 <h4 style={{ color: '#fff', textAlign: 'center' }}>
-                  📈 7-Day Confidence History
+                  📈 Traditional View - 7-Day Confidence History
                 </h4>
                 <div style={{ 
                   display: 'flex', 
@@ -779,16 +807,61 @@ function BotTable() {
 
         {activeTab==='logs' && (
           <div style={{ marginTop:'20px'}}>
-            <h2>Logs - Signal History</h2>
-            <table>
+            <h2>📝 Enhanced Logs - Signal History & Local Analysis</h2>
+            
+            {/* Log Filters */}
+            <div style={{ 
+              background: '#2a2a2a', 
+              padding: '15px', 
+              borderRadius: '8px',
+              marginBottom: '20px',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: '15px'
+            }}>
+              <div>
+                <label style={{ color: '#fff', marginBottom: '5px', display: 'block' }}>Filter by Coin:</label>
+                <select style={{
+                  background: '#333', 
+                  color: '#fff', 
+                  border: '1px solid #555',
+                  padding: '8px', 
+                  borderRadius: '4px',
+                  width: '100%'
+                }}>
+                  <option value="">All Coins</option>
+                  {coins.map(coin => (
+                    <option key={coin} value={coin}>{coin.toUpperCase()}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ color: '#fff', fontWeight: 'bold' }}>Total Signals Today</div>
+                <div style={{ color: '#2ecc71', fontSize: '24px' }}>
+                  {logs.length}
+                </div>
+              </div>
+              
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ color: '#fff', fontWeight: 'bold' }}>Local Analysis Records</div>
+                <div style={{ color: '#3498db', fontSize: '24px' }}>
+                  {localAnalysis.length}
+                </div>
+              </div>
+            </div>
+
+            {/* Backend Logs Table */}
+            <table style={{ marginBottom: '30px' }}>
               <thead style={{ background:'#3a3a3a'}}>
                 <tr>
                   <th>Time</th>
                   <th>Coin</th>
                   <th>Timeframe</th>
-                  <th>OldSignal</th>
-                  <th>NewSignal</th>
+                  <th>Old Signal</th>
+                  <th>New Signal</th>
                   <th>Reason</th>
+                  <th>Confidence</th>
                 </tr>
               </thead>
               <tbody>
@@ -796,16 +869,94 @@ function BotTable() {
                   logs.map((lg,i)=>(
                     <tr key={i}>
                       <td>{lg.time}</td>
-                      <td>{lg.coin}</td>
+                      <td style={{ fontWeight: 'bold', color: '#3498db' }}>{lg.coin}</td>
                       <td>{lg.timeframe}</td>
-                      <td>{lg.oldSignal}</td>
-                      <td>{lg.newSignal}</td>
+                      <td>
+                        <span style={signalStyle(lg.oldSignal || 'NEUTRAL')}>
+                          {lg.oldSignal || 'NEUTRAL'}
+                        </span>
+                      </td>
+                      <td>
+                        <span style={signalStyle(lg.newSignal || 'NEUTRAL')}>
+                          {lg.newSignal || 'NEUTRAL'}
+                        </span>
+                      </td>
                       <td>{lg.reason}</td>
+                      <td style={{ 
+                        color: '#f39c12',
+                        fontWeight: 'bold'
+                      }}>
+                        {lg.confidence || 'N/A'}%
+                      </td>
                     </tr>
                   ))
                 ):(
                   <tr>
-                    <td colSpan={6}>No logs</td>
+                    <td colSpan={7}>No backend logs available</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            {/* Local Analysis History */}
+            <h3 style={{ color: '#fff', marginBottom: '15px' }}>
+              🧠 Local Frontend Analysis History
+            </h3>
+            <table>
+              <thead style={{ background:'#3a3a3a'}}>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Coin</th>
+                  <th>Price</th>
+                  <th>Confidence</th>
+                  <th>Recommendation</th>
+                  <th>Top Signals</th>
+                  <th>Volatility</th>
+                </tr>
+              </thead>
+              <tbody>
+                {localAnalysis.slice(-20).reverse().map((analysis, i) => (
+                  <tr key={i}>
+                    <td>{new Date(analysis.timestamp).toLocaleString('sr-RS')}</td>
+                    <td style={{ fontWeight: 'bold', color: '#3498db' }}>
+                      {analysis.coin?.toUpperCase()}
+                    </td>
+                    <td>${analysis.price?.toFixed(4) || 'N/A'}</td>
+                    <td style={{ 
+                      color: analysis.confidence > 70 ? '#2ecc71' : 
+                             analysis.confidence > 40 ? '#f39c12' : '#e74c3c',
+                      fontWeight: 'bold'
+                    }}>
+                      {analysis.confidence}%
+                    </td>
+                    <td>
+                      <span style={signalStyle(analysis.recommendation)}>
+                        {analysis.recommendation}
+                      </span>
+                    </td>
+                    <td>
+                      {analysis.signals?.slice(0, 2).map((signal, idx) => (
+                        <span key={idx} style={{
+                          backgroundColor: '#444',
+                          color: '#fff',
+                          padding: '2px 4px',
+                          borderRadius: '3px',
+                          fontSize: '10px',
+                          marginRight: '3px',
+                          display: 'inline-block'
+                        }}>
+                          {signal.indicator}: {signal.confidence}%
+                        </span>
+                      ))}
+                    </td>
+                    <td style={{ color: '#9b59b6' }}>
+                      {analysis.volatility}%
+                    </td>
+                  </tr>
+                ))}
+                {localAnalysis.length === 0 && (
+                  <tr>
+                    <td colSpan={7}>No local analysis data yet. Analysis will appear as data is processed.</td>
                   </tr>
                 )}
               </tbody>
