@@ -342,6 +342,9 @@ function BotTable() {
       try {
         // Load market data and perform local analysis
         const data = await fetchMarketData(selectedCoin);
+        console.log('🚀 API Response for', selectedCoin, ':', data);
+        console.log('🔍 Data length:', data?.length);
+        console.log('🔍 First item:', data?.[0]);
         setMarketData(data || []);
         setLastUpdateTime(new Date().toLocaleTimeString());
 
@@ -434,14 +437,19 @@ function BotTable() {
   const rastStyle={ color:'#2ecc71', fontWeight:'bold' };
   const padStyle={ color:'#e74c3c', fontWeight:'bold' };
   const signalStyle=(sig)=>{
+    console.log('🔥 signalStyle called with:', sig, 'type:', typeof sig);
     if(!sig || typeof sig !== 'string') {
+      console.log('❌ signalStyle: sig is null/undefined/not string, returning yellow');
       return { backgroundColor:'#f1c40f', color:'#000', padding:'4px 6px', borderRadius:'4px'};
     }
     if(sig.includes('SELL')){
+      console.log('✅ signalStyle: SELL signal detected');
       return { backgroundColor:'#e74c3c', color:'#000', padding:'4px 6px', borderRadius:'4px'};
     } else if(sig.includes('BUY')){
+      console.log('✅ signalStyle: BUY signal detected');  
       return { backgroundColor:'#2ecc71', color:'#000', padding:'4px 6px', borderRadius:'4px'};
     } else {
+      console.log('✅ signalStyle: NEUTRAL signal');
       return { backgroundColor:'#f1c40f', color:'#000', padding:'4px 6px', borderRadius:'4px'};
     }
   };
