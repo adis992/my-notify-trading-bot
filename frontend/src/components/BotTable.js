@@ -437,19 +437,19 @@ function BotTable() {
   const rastStyle={ color:'#2ecc71', fontWeight:'bold' };
   const padStyle={ color:'#e74c3c', fontWeight:'bold' };
   const signalStyle=(sig)=>{
-    console.log('🔥 signalStyle called with:', sig, 'type:', typeof sig);
+    console.log('🔥 v2.0 signalStyle called with:', sig, 'type:', typeof sig);
     if(!sig || typeof sig !== 'string') {
-      console.log('❌ signalStyle: sig is null/undefined/not string, returning yellow');
+      console.log('❌ v2.0 signalStyle: sig is null/undefined/not string, returning yellow');
       return { backgroundColor:'#f1c40f', color:'#000', padding:'4px 6px', borderRadius:'4px'};
     }
     if(sig.includes('SELL')){
-      console.log('✅ signalStyle: SELL signal detected');
+      console.log('✅ v2.0 signalStyle: SELL signal detected');
       return { backgroundColor:'#e74c3c', color:'#000', padding:'4px 6px', borderRadius:'4px'};
     } else if(sig.includes('BUY')){
-      console.log('✅ signalStyle: BUY signal detected');  
+      console.log('✅ v2.0 signalStyle: BUY signal detected');  
       return { backgroundColor:'#2ecc71', color:'#000', padding:'4px 6px', borderRadius:'4px'};
     } else {
-      console.log('✅ signalStyle: NEUTRAL signal');
+      console.log('✅ v2.0 signalStyle: NEUTRAL signal');
       return { backgroundColor:'#f1c40f', color:'#000', padding:'4px 6px', borderRadius:'4px'};
     }
   };
@@ -545,7 +545,7 @@ function BotTable() {
           {connectionError ? '❌ Connection Error' :
            isWakingUp ? '⏳ Waking up server...' :
            window.location.hostname.includes('github.io') 
-            ? `🚀 LIVE TRADING - Real-time Crypto API ${lastUpdateTime ? `(Updated: ${new Date(lastUpdateTime).toLocaleTimeString()})` : ''}` 
+            ? `🚀 LIVE TRADING - Real-time Crypto API ${lastUpdateTime ? `(Updated: ${lastUpdateTime})` : ''}` 
             : '💻 LOCAL DEV - Backend on localhost:4000'}
         </div>
 
@@ -819,14 +819,17 @@ function BotTable() {
               <TradingChart 
                 title={`📊 ${selectedCoin.toUpperCase()} - Confidence Trend (7 Days)`}
                 type="histogram"
-                data={localAnalysis
-                  .filter(a => a.coin === selectedCoin)
-                  .slice(-7)
-                  .map(analysis => ({
-                    value: analysis.confidence,
-                    label: new Date(analysis.timestamp).toLocaleDateString('sr-RS', { month: 'short', day: 'numeric' })
-                  }))
-                }
+                data={(() => {
+                  const chartData = localAnalysis
+                    .filter(a => a.coin === selectedCoin)
+                    .slice(-7)
+                    .map(analysis => ({
+                      value: analysis.confidence,
+                      label: new Date(analysis.timestamp).toLocaleDateString('sr-RS', { month: 'short', day: 'numeric' })
+                    }));
+                  console.log('📊 v2.0 Chart 1 data:', chartData, 'localAnalysis length:', localAnalysis.length);
+                  return chartData;
+                })()}
               />
               
               <TradingChart 

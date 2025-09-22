@@ -4,7 +4,11 @@ const TradingChart = ({ data, title, type = 'line' }) => {
   const canvasRef = useRef(null);
 
   useEffect(() => {
-    if (!data || data.length === 0) return;
+    console.log('🎯 v2.0 TradingChart:', title, 'data:', data, 'type:', type);
+    if (!data || data.length === 0) {
+      console.log('❌ v2.0 TradingChart: No data provided');
+      return;
+    }
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
