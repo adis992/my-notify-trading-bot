@@ -434,6 +434,9 @@ function BotTable() {
   const rastStyle={ color:'#2ecc71', fontWeight:'bold' };
   const padStyle={ color:'#e74c3c', fontWeight:'bold' };
   const signalStyle=(sig)=>{
+    if(!sig || typeof sig !== 'string') {
+      return { backgroundColor:'#f1c40f', color:'#000', padding:'4px 6px', borderRadius:'4px'};
+    }
     if(sig.includes('SELL')){
       return { backgroundColor:'#e74c3c', color:'#000', padding:'4px 6px', borderRadius:'4px'};
     } else if(sig.includes('BUY')){
@@ -653,8 +656,8 @@ function BotTable() {
                         {item.expectedMoveDown!=='-'? item.expectedMoveDown+'%' : '-'}
                       </td>
                       <td>
-                        <span style={signalStyle(item.finalSignal)}>
-                          {item.finalSignal}
+                        <span style={signalStyle(item.signal || 'NEUTRAL')}>
+                          {item.signal || 'NEUTRAL'}
                         </span>
                       </td>
                     </tr>
