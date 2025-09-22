@@ -10,54 +10,46 @@ const port = 4000;
 app.use(cors());
 app.use(express.json());
 
-// CoinGecko API configuration with caching
-const COINGECKO_BASE = 'https://api.coingecko.com/api/v3';
+// API configuration - Use Binance instead of CoinGecko to avoid rate limits
+const BINANCE_BASE = 'https://api.binance.com/api/v3';
+const COINGECKO_BASE = 'https://api.coingecko.com/api/v3'; // Backup only
 
-// Cache to reduce API calls and avoid 429 errors
+// Cache to reduce API calls
 const dataCache = new Map();
-const CACHE_TTL = 60000; // 1 minute cache
+const CACHE_TTL = 30000; // 30 seconds cache for Binance (much shorter)
 
-// CoinGecko coin ID mapping
-const COINGECKO_SYMBOLS = {
-  'bitcoin': 'bitcoin',
-  'btc': 'bitcoin',
-  'ethereum': 'ethereum',
-  'eth': 'ethereum',
-  'binancecoin': 'binancecoin',
-  'bnb': 'binancecoin',
-  'ripple': 'ripple',
-  'xrp': 'ripple',
-  'cardano': 'cardano',
-  'ada': 'cardano',
-  'solana': 'solana',
-  'sol': 'solana',
-  'polkadot': 'polkadot',
-  'dot': 'polkadot',
-  'dogecoin': 'dogecoin',
-  'doge': 'dogecoin',
-  'avalanche': 'avalanche-2',
-  'avax': 'avalanche-2',
-  'chainlink': 'chainlink',
-  'link': 'chainlink',
-  'polygon': 'matic-network',
-  'matic': 'matic-network',
-  'uniswap': 'uniswap',
-  'uni': 'uniswap',
-  'litecoin': 'litecoin',
-  'ltc': 'litecoin',
-  'stellar': 'stellar',
-  'xlm': 'stellar',
-  'vechain': 'vechain',
-  'vet': 'vechain',
-  'filecoin': 'filecoin',
-  'fil': 'filecoin',
-  'tron': 'tron',
-  'trx': 'tron',
-  'monero': 'monero',
-  'xmr': 'monero',
-  'eos': 'eos',
-  'iota': 'iota',
-  'miota': 'iota'
+// Binance symbol mapping (NO RATE LIMITS!)
+const BINANCE_SYMBOLS = {
+  'bitcoin': 'BTCUSDT',
+  'btc': 'BTCUSDT',
+  'ethereum': 'ETHUSDT',
+  'eth': 'ETHUSDT',
+  'binancecoin': 'BNBUSDT',
+  'bnb': 'BNBUSDT',
+  'ripple': 'XRPUSDT',
+  'xrp': 'XRPUSDT',
+  'cardano': 'ADAUSDT',
+  'ada': 'ADAUSDT',
+  'solana': 'SOLUSDT',
+  'sol': 'SOLUSDT',
+  'polkadot': 'DOTUSDT',
+  'dot': 'DOTUSDT',
+  'dogecoin': 'DOGEUSDT',
+  'doge': 'DOGEUSDT',
+  'avalanche': 'AVAXUSDT',
+  'avax': 'AVAXUSDT',
+  'chainlink': 'LINKUSDT',
+  'link': 'LINKUSDT',
+  'polygon': 'MATICUSDT',
+  'matic': 'MATICUSDT',
+  'uniswap': 'UNIUSDT',
+  'uni': 'UNIUSDT',
+  'litecoin': 'LTCUSDT',
+  'ltc': 'LTCUSDT',
+  'stellar': 'XLMUSDT',
+  'xlm': 'XLMUSDT',
+  'tron': 'TRXUSDT',
+  'trx': 'TRXUSDT'
 };
 
 // Timeframes for analysis
@@ -92,8 +84,54 @@ function createNeutralResult(timeframe, price = 100, reason = 'Insufficient data
   };
 }
 
-// Fetch data from CoinGecko API with caching
-async function fetchCoinGeckoData(coinId) {
+// Fetch data from Binance API (NO RATE LIMITS!)
+async function fetchBinanceData(symbol) {
+  // Check cache first
+  const cacheKey = `${symbol}_binance_data`;
+  const cached = dataCache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+    console.log(`📦 Using cached Binance data for ${symbol}`);
+    return cached.data;
+  }
+
+  try {
+    console.log(`🚀 Fetching fresh data for ${symbol} from Binance...`);
+    
+    // Get current price and 24h stats
+    const tickerUrl = `${BINANCE_BASE}/ticker/24hr?symbol=${symbol}`;
+    const tickerResponse = await axios.get(tickerUrl, { timeout: 10000 });
+    const tickerData = tickerResponse.data;
+
+    // Get historical kline data (500 data points, 1h interval)
+    const klinesUrl = `${BINANCE_BASE}/klines?symbol=${symbol}&interval=1h&limit=500`;
+    const klinesResponse = await axios.get(klinesUrl, { timeout: 15000 });
+    const klinesData = klinesResponse.data;
+
+    // Extract price and volume arrays
+    const prices = klinesData.map(kline => parseFloat(kline[4])); // Close prices
+    const volumes = klinesData.map(kline => parseFloat(kline[5])); // Volumes
+    
+    const analysisData = {
+      prices: prices,
+      volumes: volumes,
+      currentPrice: parseFloat(tickerData.lastPrice),
+      change24h: parseFloat(tickerData.priceChangePercent),
+      volume24h: parseFloat(tickerData.volume),
+      marketCap: 0 // Binance doesn't provide this directly
+    };
+
+    // Cache the result
+    dataCache.set(cacheKey, {
+      data: analysisData,
+      timestamp: Date.now()
+    });
+
+    return analysisData;
+  } catch (error) {
+    console.error(`Binance fetch error for ${symbol}:`, error.message);
+    throw error;
+  }
+}
   // Check cache first
   const cacheKey = `${coinId}_data`;
   const cached = dataCache.get(cacheKey);
@@ -161,14 +199,14 @@ async function fetchCoinGeckoData(coinId) {
 app.get('/api/getAllIndicators', async (req, res) => {
   try {
     const coin = (req.query.coin || 'bitcoin').toLowerCase();
-    const coinId = COINGECKO_SYMBOLS[coin];
+    const binanceSymbol = BINANCE_SYMBOLS[coin];
     
-    if (!coinId) {
-      return res.status(400).json({ success: false, error: 'Nepoznat coin' });
+    if (!binanceSymbol) {
+      return res.status(400).json({ success: false, error: `Nepoznat coin: ${coin}` });
     }
 
-    // Fetch real data from CoinGecko
-    const marketData = await fetchCoinGeckoData(coinId);
+    // Fetch real data from Binance (NO RATE LIMITS!)
+    const marketData = await fetchBinanceData(binanceSymbol);
     const closes = marketData.prices;
     const volumes = marketData.volumes;
     const currentPrice = marketData.currentPrice;
@@ -608,6 +646,6 @@ app.listen(port, () => {
   console.log('  GET  /api/tradeHistory');
   console.log('  POST /api/doTrade');
   console.log('');
-  console.log('🔗 CoinGecko API integration active');
-  console.log(`💰 Supported coins: ${Object.keys(COINGECKO_SYMBOLS).slice(0, 10).join(', ')}...`);
+  console.log('� Binance API integration active - NO RATE LIMITS!');
+  console.log(`💰 Supported coins: ${Object.keys(BINANCE_SYMBOLS).slice(0, 10).join(', ')}...`);
 });
