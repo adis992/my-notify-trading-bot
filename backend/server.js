@@ -522,6 +522,16 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Test endpoint for Settings component
+app.get('/test', (req, res) => {
+  return res.json({ 
+    success: true, 
+    status: 'OK', 
+    message: 'API connection test successful',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Root endpoint
 app.get('/', (req, res) => {
   return res.json({ 
