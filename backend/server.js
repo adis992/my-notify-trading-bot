@@ -16,7 +16,7 @@ const COINGECKO_BASE = 'https://api.coingecko.com/api/v3'; // Backup only
 
 // Cache to reduce API calls
 const dataCache = new Map();
-const CACHE_TTL = 30000; // 30 seconds cache for Binance (much shorter)
+const CACHE_TTL = 300000; // 5 MINUTES cache to avoid rate limits
 
 // Binance symbol mapping (NO RATE LIMITS!)
 const BINANCE_SYMBOLS = {
@@ -96,6 +96,9 @@ async function fetchBinanceData(symbol) {
 
   try {
     console.log(`🚀 Fetching fresh data for ${symbol} from Binance...`);
+    
+    // Add longer delay to respect rate limits
+    await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
     
     // Get current price and 24h stats
     const tickerUrl = `${BINANCE_BASE}/ticker/24hr?symbol=${symbol}`;
