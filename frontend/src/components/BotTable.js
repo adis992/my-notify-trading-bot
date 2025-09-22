@@ -81,17 +81,20 @@ const LocalDB = {
   },
   
   getHistory: (coin, days = 7) => {
+    console.log('📚 v2.0 LocalDB.getHistory for:', coin, 'days:', days);
     const history = [];
     const maxAge = days * 24 * 60 * 60 * 1000;
     
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key.startsWith(`analysis_${coin}_`)) {
+        console.log('🔍 v2.0 Found analysis key:', key);
         const data = LocalDB.get(key, maxAge);
         if (data) history.push(data);
       }
     }
     
+    console.log('📊 v2.0 getHistory result:', history.length, 'entries for', coin);
     return history.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
   },
   
@@ -110,6 +113,9 @@ function BotTable() {
   const [selectedCoin, setSelectedCoin] = useState(
     localStorage.getItem('selectedCoin') || 'solana'
   );
+  const [selectedTimeframe, setSelectedTimeframe] = useState(
+    localStorage.getItem('selectedTimeframe') || '15m'
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [connectionError, setConnectionError] = useState(null);
   const [isWakingUp, setIsWakingUp] = useState(false);
@@ -123,132 +129,181 @@ function BotTable() {
     'xrp','litecoin','polkadot','chainlink','avalanche'
   ];
 
-  // Frontend Technical Analysis Function
-  const performLocalAnalysis = async (coinData) => {
-    if (!coinData || !coinData.prices || coinData.prices.length < 26) {
-      return { confidence: 0, signals: [], recommendation: 'HOLD' };
+  // Calculate main prediction based on all timeframes and indicators
+  const calculateMainPrediction = (allTimeframeData, selectedTimeframe) => {
+    if (!allTimeframeData || allTimeframeData.length === 0) {
+      console.log('⚠️ No timeframe data for main prediction');
+      return null;
     }
 
-    const prices = coinData.prices.map(p => parseFloat(p));
-    const highs = coinData.highs || prices;
-    const lows = coinData.lows || prices;
-    const volumes = coinData.volumes || Array(prices.length).fill(1000000);
-    const currentPrice = prices[prices.length - 1];
+    console.log('🎯 Calculating main prediction with', allTimeframeData.length, 'timeframes');
 
-    // Calculate all indicators locally
-    const rsi = calculateRSI(prices);
-    const macd = calculateMACD(prices);
-    const stoch = calculateStochastic(highs, lows, prices);
-    const bb = calculateBollingerBands(prices);
-    const williamsR = -((Math.max(...highs.slice(-14)) - currentPrice) / (Math.max(...highs.slice(-14)) - Math.min(...lows.slice(-14)))) * 100;
-    
-    // Volume analysis
-    const avgVolume = volumes.slice(-20).reduce((a, b) => a + b) / 20;
-    const currentVolume = volumes[volumes.length - 1];
-    const volumeRatio = currentVolume / avgVolume;
-    
-    // Price action analysis
-    const priceChange24h = ((currentPrice - prices[prices.length - 24]) / prices[prices.length - 24]) * 100;
-    const volatility = Math.sqrt(prices.slice(-20).reduce((sum, price, i, arr) => {
-      if (i === 0) return 0;
-      const change = (price - arr[i-1]) / arr[i-1];
-      return sum + change * change;
-    }, 0) / 19);
-
-    // Weighted Confidence Calculation (95% accuracy model)
-    const signals = [];
-    let totalConfidence = 0;
-
-    // RSI Analysis (15% weight)
-    let rsiSignal = 'NEUTRAL';
-    let rsiConfidence = 0;
-    if (rsi < 30) { rsiSignal = 'BUY'; rsiConfidence = 15; }
-    else if (rsi > 70) { rsiSignal = 'SELL'; rsiConfidence = 15; }
-    else if (rsi < 40) { rsiSignal = 'WEAK_BUY'; rsiConfidence = 8; }
-    else if (rsi > 60) { rsiSignal = 'WEAK_SELL'; rsiConfidence = 8; }
-    signals.push({ indicator: 'RSI', value: (typeof rsi === 'number' ? rsi.toFixed(2) : 'N/A'), signal: rsiSignal, confidence: rsiConfidence });
-    totalConfidence += rsiConfidence;
-
-    // MACD Histogram (20% weight)
-    let macdSignal = 'NEUTRAL';
-    let macdConfidence = 0;
-    if (macd.histogram > 0.01) { macdSignal = 'BUY'; macdConfidence = 20; }
-    else if (macd.histogram < -0.01) { macdSignal = 'SELL'; macdConfidence = 20; }
-    else if (macd.histogram > 0) { macdSignal = 'WEAK_BUY'; macdConfidence = 10; }
-    else if (macd.histogram < 0) { macdSignal = 'WEAK_SELL'; macdConfidence = 10; }
-    signals.push({ indicator: 'MACD', value: (typeof macd.histogram === 'number' ? macd.histogram.toFixed(4) : 'N/A'), signal: macdSignal, confidence: macdConfidence });
-    totalConfidence += macdConfidence;
-
-    // Stochastic (10% weight)
-    let stochSignal = 'NEUTRAL';
-    let stochConfidence = 0;
-    if (stoch.k < 20) { stochSignal = 'BUY'; stochConfidence = 10; }
-    else if (stoch.k > 80) { stochSignal = 'SELL'; stochConfidence = 10; }
-    else if (stoch.k < 30) { stochSignal = 'WEAK_BUY'; stochConfidence = 5; }
-    else if (stoch.k > 70) { stochSignal = 'WEAK_SELL'; stochConfidence = 5; }
-    signals.push({ indicator: 'Stochastic', value: (typeof stoch.k === 'number' ? stoch.k.toFixed(2) : 'N/A'), signal: stochSignal, confidence: stochConfidence });
-    totalConfidence += stochConfidence;
-
-    // Bollinger Bands (12% weight)
-    let bbSignal = 'NEUTRAL';
-    let bbConfidence = 0;
-    if (currentPrice <= bb.lower) { bbSignal = 'BUY'; bbConfidence = 12; }
-    else if (currentPrice >= bb.upper) { bbSignal = 'SELL'; bbConfidence = 12; }
-    else if (currentPrice < bb.middle) { bbSignal = 'WEAK_BUY'; bbConfidence = 6; }
-    else if (currentPrice > bb.middle) { bbSignal = 'WEAK_SELL'; bbConfidence = 6; }
-    signals.push({ indicator: 'Bollinger', value: (typeof currentPrice === 'number' && typeof bb.middle === 'number' && typeof bb.upper === 'number' && typeof bb.lower === 'number' ? `${((currentPrice - bb.middle) / (bb.upper - bb.lower) * 100).toFixed(1)}%` : 'N/A'), signal: bbSignal, confidence: bbConfidence });
-    totalConfidence += bbConfidence;
-
-    // Williams %R (8% weight)
-    let wrSignal = 'NEUTRAL';
-    let wrConfidence = 0;
-    if (williamsR < -80) { wrSignal = 'BUY'; wrConfidence = 8; }
-    else if (williamsR > -20) { wrSignal = 'SELL'; wrConfidence = 8; }
-    else if (williamsR < -70) { wrSignal = 'WEAK_BUY'; wrConfidence = 4; }
-    else if (williamsR > -30) { wrSignal = 'WEAK_SELL'; wrConfidence = 4; }
-    signals.push({ indicator: 'Williams %R', value: (typeof williamsR === 'number' ? williamsR.toFixed(2) : 'N/A'), signal: wrSignal, confidence: wrConfidence });
-    totalConfidence += wrConfidence;
-
-    // Volume Analysis (10% weight)
-    let volumeSignal = 'NEUTRAL';
-    let volumeConfidence = 0;
-    if (volumeRatio > 1.5) { volumeSignal = 'HIGH_VOLUME'; volumeConfidence = 10; }
-    else if (volumeRatio < 0.5) { volumeSignal = 'LOW_VOLUME'; volumeConfidence = 5; }
-    signals.push({ indicator: 'Volume', value: (typeof volumeRatio === 'number' ? `${(volumeRatio * 100).toFixed(0)}%` : 'N/A'), signal: volumeSignal, confidence: volumeConfidence });
-    totalConfidence += volumeConfidence;
-
-    // Price Action (5% weight)
-    let priceSignal = 'NEUTRAL';
-    let priceConfidence = 0;
-    if (priceChange24h > 5) { priceSignal = 'STRONG_UP'; priceConfidence = 5; }
-    else if (priceChange24h < -5) { priceSignal = 'STRONG_DOWN'; priceConfidence = 5; }
-    else if (priceChange24h > 2) { priceSignal = 'UP'; priceConfidence = 3; }
-    else if (priceChange24h < -2) { priceSignal = 'DOWN'; priceConfidence = 3; }
-    signals.push({ indicator: 'Price Action', value: (typeof priceChange24h === 'number' ? `${priceChange24h.toFixed(2)}%` : 'N/A'), signal: priceSignal, confidence: priceConfidence });
-    totalConfidence += priceConfidence;
-
-    // Final Recommendation
-    const buySignals = signals.filter(s => s.signal && typeof s.signal === 'string' && s.signal.includes('BUY')).reduce((sum, s) => sum + s.confidence, 0);
-    const sellSignals = signals.filter(s => s.signal && typeof s.signal === 'string' && s.signal.includes('SELL')).reduce((sum, s) => sum + s.confidence, 0);
-    
-    let recommendation = 'HOLD';
-    if (buySignals > sellSignals + 10) recommendation = 'BUY';
-    else if (sellSignals > buySignals + 10) recommendation = 'SELL';
-
-    const analysis = {
-      coin: coinData.coin || selectedCoin,
-      price: currentPrice,
-      confidence: totalConfidence,
-      signals,
-      recommendation,
-      volatility: (typeof volatility === 'number' ? (volatility * 100).toFixed(2) : '0.00'),
-      timestamp: new Date().toISOString()
+    // Weight shorter timeframes more for immediate trading
+    const timeframeWeights = {
+      '1m': 0.05, '3m': 0.08, '15m': 0.15, '30m': 0.12, 
+      '1h': 0.15, '4h': 0.20, '8h': 0.10, '12h': 0.08, 
+      '1d': 0.05, '1w': 0.02, '1M': 0.01
     };
 
-    // Save to local storage
-    LocalDB.saveAnalysis(coinData.coin || selectedCoin, analysis);
+    let totalBuyScore = 0;
+    let totalSellScore = 0;
+    let totalWeight = 0;
+    let avgVolatility = 0;
+    let strongSignals = 0;
+
+    allTimeframeData.forEach(tf => {
+      const weight = timeframeWeights[tf.timeframe] || 0.1;
+      const buyConf = parseFloat(tf.buyConfidence || 0);
+      const sellConf = parseFloat(tf.sellConfidence || 0);
+      const volatility = parseFloat(tf.expectedMoveUp || 0) + parseFloat(tf.expectedMoveDown || 0);
+      
+      console.log(`📊 ${tf.timeframe}: Buy=${buyConf}%, Sell=${sellConf}%, Weight=${weight}, Vol=${volatility}%`);
+      
+      totalBuyScore += buyConf * weight;
+      totalSellScore += sellConf * weight;
+      totalWeight += weight;
+      avgVolatility += volatility * weight;
+      
+      // Count strong signals (confidence > 60%)
+      if (buyConf > 60 || sellConf > 60) strongSignals++;
+    });
+
+    if (totalWeight === 0) {
+      console.log('⚠️ Total weight is 0, returning null');
+      return null;
+    }
+
+    const buyScore = totalBuyScore / totalWeight;
+    const sellScore = totalSellScore / totalWeight;
+    const avgVol = avgVolatility / totalWeight;
     
-    return analysis;
+    console.log(`🎯 Weighted scores: Buy=${buyScore.toFixed(1)}%, Sell=${sellScore.toFixed(1)}%, Vol=${avgVol.toFixed(1)}%`);
+    
+    // Main prediction logic
+    let mainSignal = 'HOLD';
+    let confidence = Math.max(buyScore, sellScore);
+    
+    if (buyScore > sellScore && buyScore > 50) {
+      mainSignal = 'BUY';
+      confidence = buyScore;
+    } else if (sellScore > buyScore && sellScore > 50) {
+      mainSignal = 'SELL';
+      confidence = sellScore;
+    }
+
+    // Risk adjustment for high volatility
+    if (avgVol > 10) {
+      confidence = confidence * 0.8; // Reduce confidence in volatile conditions
+      console.log(`⚠️ High volatility detected (${avgVol.toFixed(1)}%), reducing confidence to ${confidence.toFixed(1)}%`);
+    }
+
+    // Boost confidence if multiple strong signals align
+    if (strongSignals >= 3 && mainSignal !== 'HOLD') {
+      confidence = Math.min(95, confidence * 1.2);
+      console.log(`🚀 ${strongSignals} strong signals detected, boosting confidence to ${confidence.toFixed(1)}%`);
+    }
+
+    const result = {
+      signal: mainSignal,
+      confidence: Math.round(confidence),
+      volatility: Math.round(avgVol * 10) / 10,
+      strongSignals: strongSignals,
+      buyScore: Math.round(buyScore),
+      sellScore: Math.round(sellScore),
+      recommendation: confidence > 70 ? `STRONG ${mainSignal}` : 
+                     confidence > 50 ? mainSignal : 'WEAK ' + mainSignal
+    };
+
+    console.log('🎯 Final main prediction:', result);
+    return result;
+  };
+
+  // Generate chart history data from real timeframe data
+  const generateChartHistory = (timeframeData, coin) => {
+    const historyData = [];
+    const now = new Date();
+    
+    // Create historical entries using different timeframes as historical points
+    timeframeData.forEach((tf, index) => {
+      const pastTime = new Date(now.getTime() - ((timeframeData.length - index) * 2 * 60 * 60 * 1000)); // 2 hours apart
+      
+      const historyEntry = {
+        coin: coin,
+        confidence: parseFloat(tf.buyConfidence || 0) + parseFloat(tf.sellConfidence || 0),
+        recommendation: tf.signal || 'HOLD',
+        price: parseFloat(tf.price),
+        timestamp: pastTime.toISOString(),
+        volatility: (parseFloat(tf.expectedMoveUp || 0) + parseFloat(tf.expectedMoveDown || 0)) / 2,
+        signals: [{
+          indicator: 'RSI',
+          value: tf.rsi || 'N/A',
+          signal: tf.signal || 'NEUTRAL',
+          confidence: parseFloat(tf.buyConfidence || 0)
+        }],
+        timeframe: tf.timeframe
+      };
+      
+      historyData.push(historyEntry);
+    });
+    
+    return historyData;
+  };
+
+  // Check for direction change warning
+  const checkDirectionWarning = (currentData, historicalData) => {
+    if (!historicalData || historicalData.length < 2) return null;
+    
+    const currentSignal = currentData.signal;
+    const previousSignals = historicalData.slice(-3).map(h => h.recommendation);
+    
+    // Check if there's a recent signal change
+    const hasRecentChange = previousSignals.some(prev => prev !== currentSignal);
+    const volatility = parseFloat(currentData.expectedMoveUp || 0) + parseFloat(currentData.expectedMoveDown || 0);
+    
+    if (hasRecentChange && volatility > 5) {
+      return {
+        type: 'DIRECTION_CHANGE',
+        message: `⚠️ PAŽNJA: Moguja promena smera! Volatilnost: ${volatility.toFixed(1)}%`,
+        severity: volatility > 10 ? 'HIGH' : 'MEDIUM'
+      };
+    }
+    
+    if (volatility > 15) {
+      return {
+        type: 'HIGH_VOLATILITY', 
+        message: `🚨 VISOKA VOLATILNOST: ${volatility.toFixed(1)}% - Pazite na pozicije!`,
+        severity: 'HIGH'
+      };
+    }
+    
+    return null;
+  };
+
+  // Generate mock historical analysis data for charts
+  const generateMockHistoricalAnalysis = (coin, currentData, daysBack = 7) => {
+    const historicalData = [];
+    const currentPrice = parseFloat(currentData.price);
+    const now = new Date();
+    
+    for (let i = daysBack; i >= 1; i--) {
+      const pastDate = new Date(now.getTime() - (i * 24 * 60 * 60 * 1000));
+      const priceVariation = (Math.random() - 0.5) * 0.1; // ±5% variation
+      const pastPrice = currentPrice * (1 + priceVariation);
+      const confidence = Math.floor(Math.random() * 40) + 30; // 30-70% confidence
+      
+      const mockAnalysis = {
+        coin: coin,
+        confidence: confidence,
+        recommendation: confidence > 60 ? 'BUY' : confidence < 40 ? 'SELL' : 'HOLD',
+        price: pastPrice,
+        timestamp: pastDate.toISOString(),
+        volatility: Math.random() * 2 + 0.5 // 0.5% - 2.5%
+      };
+      
+      historicalData.push(mockAnalysis);
+    }
+    
+    return historicalData;
   };
 
   // Fetch ETF data (top 100 transactions) with configurable API and rate limiting
@@ -350,20 +405,47 @@ function BotTable() {
 
         // Perform analysis on all coins
         if (data && data.length > 0) {
-          // Convert timeframe data to format expected by performLocalAnalysis
-          const mockCoinData = {
-            coin: selectedCoin,
-            prices: data.map(tf => parseFloat(tf.price)), // Use prices from different timeframes
-            volumes: Array(data.length).fill(1000000), // Mock volumes
-            currentPrice: parseFloat(data[0].price)
-          };
-          console.log('🔍 v2.0 Mock coinData for analysis:', mockCoinData);
-          await performLocalAnalysis(mockCoinData);
+          // Use REAL data from backend - no more mock data!
+          const currentTimeframeData = data.find(tf => tf.timeframe === selectedTimeframe) || data[0];
           
-          // Refresh localAnalysis state after analysis
+          // Create analysis using REAL timeframe data for selected timeframe
+          const realAnalysisData = {
+            coin: selectedCoin,
+            confidence: parseFloat(currentTimeframeData.buyConfidence || 0) + parseFloat(currentTimeframeData.sellConfidence || 0),
+            recommendation: currentTimeframeData.signal || 'HOLD',
+            price: parseFloat(currentTimeframeData.price),
+            timestamp: new Date().toISOString(),
+            volatility: (parseFloat(currentTimeframeData.expectedMoveUp || 0) + parseFloat(currentTimeframeData.expectedMoveDown || 0)) / 2,
+            signals: [{
+              indicator: 'RSI',
+              value: currentTimeframeData.rsi || 'N/A',
+              signal: currentTimeframeData.signal || 'NEUTRAL',
+              confidence: parseFloat(currentTimeframeData.buyConfidence || 0)
+            }],
+            timeframe: currentTimeframeData.timeframe,
+            entryPrice: parseFloat(currentTimeframeData.entryPrice),
+            stopLoss: parseFloat(currentTimeframeData.stopLoss),
+            takeProfit: parseFloat(currentTimeframeData.takeProfit)
+          };
+          
+          // Save REAL analysis data
+          LocalDB.saveAnalysis(selectedCoin, realAnalysisData);
+          console.log('💾 v2.0 Saved REAL analysis for:', selectedCoin, realAnalysisData);
+          
+          // Generate chart data from real timeframe data
+          const chartHistoryData = generateChartHistory(data, selectedCoin);
+          chartHistoryData.forEach(entry => {
+            LocalDB.saveAnalysis(selectedCoin, entry);
+          });
+          
+          // Calculate and log main prediction for debugging
+          const mainPred = calculateMainPrediction(data, selectedTimeframe);
+          console.log('🎯 v2.0 Main Prediction for', selectedCoin, ':', mainPred);
+          
+          // Refresh localAnalysis state after real analysis
           const updatedHistory = LocalDB.getHistory(selectedCoin);
           setLocalAnalysis(updatedHistory);
-          console.log('📊 v2.0 Updated localAnalysis:', updatedHistory.length, 'entries');
+          console.log('📊 v2.0 Updated localAnalysis with REAL data:', updatedHistory.length, 'entries');
         }
 
         // Load ETF data if on ETF tab
@@ -396,7 +478,7 @@ function BotTable() {
     const refreshInterval = localStorage.getItem('trading_refresh_interval') || '60';
     const interval = setInterval(loadData, parseInt(refreshInterval) * 1000); // Use configurable interval
     return () => clearInterval(interval);
-  }, [selectedCoin, activeTab]);
+  }, [selectedCoin, selectedTimeframe, activeTab]);
 
   const fetchAll= async()=>{
     // This function is now replaced by the useEffect above
@@ -406,6 +488,11 @@ function BotTable() {
   const handleCoinChange=(e)=>{
     setSelectedCoin(e.target.value);
     localStorage.setItem('selectedCoin', e.target.value);
+  };
+
+  const handleTimeframeChange=(e)=>{
+    setSelectedTimeframe(e.target.value);
+    localStorage.setItem('selectedTimeframe', e.target.value);
   };
 
   // RAST/PAD
@@ -472,6 +559,30 @@ function BotTable() {
       {/* Minimalan style za font i media queries */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Roboto&display=swap');
+        @keyframes pulse {
+          0% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.8; transform: scale(1.02); }
+          100% { opacity: 1; transform: scale(1); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .warning-box {
+          animation: fadeIn 0.5s ease-in-out;
+        }
+        .pulse-animation {
+          animation: pulse 2s infinite;
+        }
+        @media (max-width: 768px) {
+          .mobile-table {
+            font-size: 0.8em;
+          }
+          .mobile-scroll {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+          }
+        }
 
         body, html {
           font-family: 'Roboto', sans-serif;
@@ -631,37 +742,338 @@ function BotTable() {
 
         {activeTab==='market' && (
           <>
-            <div style={{ textAlign:'center', marginBottom:'15px'}}>
-              <label style={{ marginRight:'6px'}}>Coin:</label>
-              <select
-                value={selectedCoin}
-                onChange={handleCoinChange}
-                style={{
-                  background:'#333', color:'#fff', border:'1px solid #555',
-                  padding:'5px 10px', borderRadius:'4px'
-                }}
-              >
-                {coins.map((coin)=>(
-                  <option key={coin} value={coin}>{coin.toUpperCase()}</option>
-                ))}
-              </select>
+            <div style={{ 
+              textAlign:'center', 
+              marginBottom:'15px', 
+              display: 'flex', 
+              justifyContent: 'center', 
+              gap: window.innerWidth < 768 ? '10px' : '20px', 
+              alignItems: 'center',
+              flexWrap: 'wrap'
+            }}>
+              <div style={{ minWidth: window.innerWidth < 768 ? '140px' : 'auto' }}>
+                <label style={{ marginRight:'6px', fontSize: window.innerWidth < 768 ? '0.9em' : '1em' }}>Coin:</label>
+                <select
+                  value={selectedCoin}
+                  onChange={handleCoinChange}
+                  style={{
+                    background:'#333', color:'#fff', border:'1px solid #555',
+                    padding: window.innerWidth < 768 ? '4px 8px' : '5px 10px', 
+                    borderRadius:'4px',
+                    fontSize: window.innerWidth < 768 ? '0.9em' : '1em'
+                  }}
+                >
+                  {coins.map((coin)=>(
+                    <option key={coin} value={coin}>{coin.toUpperCase()}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div style={{ minWidth: window.innerWidth < 768 ? '140px' : 'auto' }}>
+                <label style={{ marginRight:'6px', fontSize: window.innerWidth < 768 ? '0.9em' : '1em' }}>Timeframe:</label>
+                <select
+                  value={selectedTimeframe}
+                  onChange={handleTimeframeChange}
+                  style={{
+                    background:'#333', color:'#fff', border:'1px solid #555',
+                    padding: window.innerWidth < 768 ? '4px 8px' : '5px 10px', 
+                    borderRadius:'4px',
+                    fontSize: window.innerWidth < 768 ? '0.9em' : '1em'
+                  }}
+                >
+                  <option value="1m">1m</option>
+                  <option value="3m">3m</option>
+                  <option value="15m">15m</option>
+                  <option value="30m">30m</option>
+                  <option value="1h">1h</option>
+                  <option value="4h">4h</option>
+                  <option value="8h">8h</option>
+                  <option value="12h">12h</option>
+                  <option value="1d">1d</option>
+                  <option value="1w">1w</option>
+                  <option value="1M">1M</option>
+                </select>
+              </div>
             </div>
 
-            {/* TABELA 1 */}
-            <table style={{ marginBottom:'20px'}}>
-              <thead style={{ background:'#3a3a3a', textTransform:'uppercase'}}>
-                <tr>
-                  <th>TIMEFRAME</th>
-                  <th>TRENUTNA</th>
-                  <th>ULAZNA</th>
-                  <th>STOP LOSS</th>
-                  <th>TAKE PROFIT</th>
-                  <th>RAST (%)</th>
-                  <th>PAD (%)</th>
-                  <th>SIGNAL</th>
-                </tr>
-              </thead>
-              <tbody>
+            {/* Main Prediction Display for Selected Timeframe */}
+            {marketData.length > 0 && (() => {
+              const selectedData = marketData.find(tf => tf.timeframe === selectedTimeframe);
+              const latestAnalysis = localAnalysis.filter(a => a.coin === selectedCoin).slice(-1)[0];
+              const mainPrediction = calculateMainPrediction(marketData, selectedTimeframe);
+              const warning = selectedData ? checkDirectionWarning(selectedData, localAnalysis) : null;
+              
+              if (selectedData) {
+                return (
+                  <>
+                    {/* Warning Display */}
+                    {warning && (
+                      <div 
+                        className="warning-box pulse-animation"
+                        style={{
+                          background: warning.severity === 'HIGH' ? 
+                            'linear-gradient(135deg, #8B0000, #DC143C)' : 
+                            'linear-gradient(135deg, #FF8C00, #FFA500)',
+                          border: `2px solid ${warning.severity === 'HIGH' ? '#ff4444' : '#ffaa00'}`,
+                          borderRadius: '8px',
+                          padding: '12px',
+                          margin: '10px 0',
+                          textAlign: 'center',
+                          fontSize: '1.1em',
+                          fontWeight: 'bold',
+                          color: '#fff'
+                        }}>
+                        {warning.message}
+                      </div>
+                    )}
+
+                    {/* GLAVNI PREDICTION - Based on ALL timeframes */}
+                    {mainPrediction ? (
+                    <div style={{
+                      background: 'linear-gradient(135deg, #2d1b69, #11998e)',
+                      border: '3px solid #f39c12',
+                      borderRadius: '15px',
+                      padding: window.innerWidth < 768 ? '15px' : '25px',
+                      margin: '20px 0',
+                      textAlign: 'center',
+                      boxShadow: '0 6px 25px rgba(243, 156, 18, 0.4)'
+                    }}>
+                      <h2 style={{ 
+                        color: '#f39c12', 
+                        marginBottom: '20px', 
+                        fontSize: window.innerWidth < 768 ? '1.3em' : '1.6em',
+                        textShadow: '2px 2px 4px rgba(0,0,0,0.5)'
+                      }}>
+                        🎯 GLAVNI PREDICT - {selectedCoin.toUpperCase()}
+                      </h2>
+                      
+                      {/* Main Signal & Confidence */}
+                      <div style={{ 
+                        display: 'flex',
+                        justifyContent: 'center',
+                        gap: '30px',
+                        marginBottom: '20px',
+                        flexWrap: 'wrap'
+                      }}>
+                        <div style={{
+                          background: mainPrediction.signal === 'BUY' ? 
+                            'linear-gradient(135deg, #27ae60, #2ecc71)' :
+                            mainPrediction.signal === 'SELL' ? 
+                            'linear-gradient(135deg, #e74c3c, #c0392b)' :
+                            'linear-gradient(135deg, #f39c12, #e67e22)',
+                          padding: '20px',
+                          borderRadius: '12px',
+                          minWidth: '150px',
+                          border: '2px solid #fff'
+                        }}>
+                          <div style={{ color: '#fff', fontSize: '0.9em', marginBottom: '5px' }}>GLAVNI SIGNAL</div>
+                          <div style={{ color: '#fff', fontSize: '2em', fontWeight: 'bold' }}>
+                            {mainPrediction.signal}
+                          </div>
+                          <div style={{ color: '#fff', fontSize: '0.8em' }}>
+                            {mainPrediction.recommendation}
+                          </div>
+                        </div>
+                        
+                        <div style={{
+                          background: 'linear-gradient(135deg, #8e44ad, #9b59b6)',
+                          padding: '20px',
+                          borderRadius: '12px',
+                          minWidth: '150px',
+                          border: '2px solid #fff'
+                        }}>
+                          <div style={{ color: '#fff', fontSize: '0.9em', marginBottom: '5px' }}>CONFIDENCE</div>
+                          <div style={{ color: '#fff', fontSize: '2em', fontWeight: 'bold' }}>
+                            {mainPrediction.confidence}%
+                          </div>
+                          <div style={{ color: '#fff', fontSize: '0.8em' }}>
+                            Strong Signals: {mainPrediction.strongSignals}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Detailed Scores */}
+                      <div style={{ 
+                        display: 'grid',
+                        gridTemplateColumns: window.innerWidth < 768 ? 
+                          'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+                        gap: '15px',
+                        marginBottom: '15px'
+                      }}>
+                        <div style={{ background: '#2c3e50', padding: '12px', borderRadius: '8px', color: '#fff' }}>
+                          <div style={{ fontSize: '0.8em', opacity: 0.8 }}>Buy Score</div>
+                          <div style={{ fontSize: '1.4em', fontWeight: 'bold', color: '#2ecc71' }}>
+                            {mainPrediction.buyScore}%
+                          </div>
+                        </div>
+                        
+                        <div style={{ background: '#2c3e50', padding: '12px', borderRadius: '8px', color: '#fff' }}>
+                          <div style={{ fontSize: '0.8em', opacity: 0.8 }}>Sell Score</div>
+                          <div style={{ fontSize: '1.4em', fontWeight: 'bold', color: '#e74c3c' }}>
+                            {mainPrediction.sellScore}%
+                          </div>
+                        </div>
+                        
+                        <div style={{ background: '#2c3e50', padding: '12px', borderRadius: '8px', color: '#fff' }}>
+                          <div style={{ fontSize: '0.8em', opacity: 0.8 }}>Current Price</div>
+                          <div style={{ fontSize: '1.4em', fontWeight: 'bold', color: '#3498db' }}>
+                            ${selectedData.price}
+                          </div>
+                        </div>
+                        
+                        <div style={{ background: '#2c3e50', padding: '12px', borderRadius: '8px', color: '#fff' }}>
+                          <div style={{ fontSize: '0.8em', opacity: 0.8 }}>Volatility</div>
+                          <div style={{ fontSize: '1.4em', fontWeight: 'bold', color: '#f39c12' }}>
+                            {mainPrediction.volatility}%
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Risk Management for Selected Timeframe */}
+                      <div style={{ 
+                        fontSize: '0.9em',
+                        display: 'flex', 
+                        justifyContent: 'space-around', 
+                        flexWrap: 'wrap',
+                        gap: '10px',
+                        color: '#ecf0f1'
+                      }}>
+                        <span>📊 TF: {selectedTimeframe}</span>
+                        <span style={{ color: '#e74c3c' }}>🛑 SL: ${selectedData.stopLoss}</span>
+                        <span style={{ color: '#2ecc71' }}>🎯 TP: ${selectedData.takeProfit}</span>
+                        <span style={{ color: '#f39c12' }}>📈 Entry: ${selectedData.entryPrice}</span>
+                      </div>
+                    </div>
+                    ) : (
+                      <div style={{
+                        background: 'linear-gradient(135deg, #8e44ad, #9b59b6)',
+                        border: '2px solid #f39c12',
+                        borderRadius: '12px',
+                        padding: '20px',
+                        margin: '20px 0',
+                        textAlign: 'center',
+                        color: '#fff'
+                      }}>
+                        <h3>⏳ Učitavanje glavnog prediction-a...</h3>
+                        <p>Molimo sačekajte da se učitaju svi timeframe podaci.</p>
+                      </div>
+                    )}
+
+                    {/* Selected Timeframe Details */}
+                    <div style={{
+                      background: 'linear-gradient(135deg, #1a1a2e, #16213e)',
+                      border: '2px solid #4a90e2',
+                      borderRadius: '12px',
+                      padding: window.innerWidth < 768 ? '15px' : '20px',
+                      margin: '20px 0',
+                      textAlign: 'center',
+                      boxShadow: '0 4px 20px rgba(74, 144, 226, 0.3)'
+                    }}>
+                      <h3 style={{ 
+                        color: '#4a90e2', 
+                        marginBottom: '15px', 
+                        fontSize: window.innerWidth < 768 ? '1.1em' : '1.4em' 
+                      }}>
+                        📊 {selectedTimeframe} Timeframe Details
+                      </h3>
+                      
+                      {/* Responsive Grid */}
+                      <div style={{ 
+                        display: 'grid',
+                        gridTemplateColumns: window.innerWidth < 768 ? 
+                          'repeat(2, 1fr)' : 
+                          window.innerWidth < 1024 ? 'repeat(3, 1fr)' : 'repeat(4, 1fr)',
+                        gap: '12px',
+                        marginBottom: '15px'
+                      }}>
+                        <div style={{ 
+                          background: '#2a2a4e', 
+                          padding: window.innerWidth < 768 ? '10px' : '12px', 
+                          borderRadius: '8px' 
+                        }}>
+                          <div style={{ color: '#ccc', fontSize: '0.85em' }}>Signal</div>
+                          <div style={{ 
+                            color: selectedData.signal === 'BUY' ? '#00ff88' : 
+                                  selectedData.signal === 'SELL' ? '#ff4444' : '#ffaa00',
+                            fontSize: window.innerWidth < 768 ? '1.1em' : '1.3em', 
+                            fontWeight: 'bold' 
+                          }}>
+                            {selectedData.signal}
+                          </div>
+                        </div>
+                        
+                        <div style={{ 
+                          background: '#2a2a4e', 
+                          padding: window.innerWidth < 768 ? '10px' : '12px', 
+                          borderRadius: '8px' 
+                        }}>
+                          <div style={{ color: '#ccc', fontSize: '0.85em' }}>Buy Conf</div>
+                          <div style={{ 
+                            color: '#00ff88', 
+                            fontSize: window.innerWidth < 768 ? '1.1em' : '1.3em', 
+                            fontWeight: 'bold' 
+                          }}>
+                            {selectedData.buyConfidence || 0}%
+                          </div>
+                        </div>
+                        
+                        <div style={{ 
+                          background: '#2a2a4e', 
+                          padding: window.innerWidth < 768 ? '10px' : '12px', 
+                          borderRadius: '8px' 
+                        }}>
+                          <div style={{ color: '#ccc', fontSize: '0.85em' }}>Sell Conf</div>
+                          <div style={{ 
+                            color: '#ff4444', 
+                            fontSize: window.innerWidth < 768 ? '1.1em' : '1.3em', 
+                            fontWeight: 'bold' 
+                          }}>
+                            {selectedData.sellConfidence || 0}%
+                          </div>
+                        </div>
+                        
+                        <div style={{ 
+                          background: '#2a2a4e', 
+                          padding: window.innerWidth < 768 ? '10px' : '12px', 
+                          borderRadius: '8px' 
+                        }}>
+                          <div style={{ color: '#ccc', fontSize: '0.85em' }}>RSI</div>
+                          <div style={{ 
+                            color: '#ffaa00', 
+                            fontSize: window.innerWidth < 768 ? '1.1em' : '1.3em', 
+                            fontWeight: 'bold' 
+                          }}>
+                            {typeof selectedData.rsi === 'number' ? selectedData.rsi.toFixed(1) : (selectedData.rsi || 'N/A')}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                );
+              }
+              return null;
+            })()}
+
+            {/* TABELA 1 - Responsive */}
+            <div className="mobile-scroll" style={{ overflowX: 'auto', marginBottom: '20px' }}>
+              <table style={{ 
+                width: '100%',
+                minWidth: window.innerWidth < 768 ? '600px' : 'auto',
+                fontSize: window.innerWidth < 768 ? '0.85em' : '1em'
+              }}>
+                <thead style={{ background:'#3a3a3a', textTransform:'uppercase'}}>
+                  <tr>
+                    <th style={{ padding: window.innerWidth < 768 ? '8px 4px' : '10px 8px' }}>TIMEFRAME</th>
+                    <th style={{ padding: window.innerWidth < 768 ? '8px 4px' : '10px 8px' }}>TRENUTNA</th>
+                    <th style={{ padding: window.innerWidth < 768 ? '8px 4px' : '10px 8px' }}>ULAZNA</th>
+                    <th style={{ padding: window.innerWidth < 768 ? '8px 4px' : '10px 8px' }}>STOP LOSS</th>
+                    <th style={{ padding: window.innerWidth < 768 ? '8px 4px' : '10px 8px' }}>TAKE PROFIT</th>
+                    <th style={{ padding: window.innerWidth < 768 ? '8px 4px' : '10px 8px' }}>RAST (%)</th>
+                    <th style={{ padding: window.innerWidth < 768 ? '8px 4px' : '10px 8px' }}>PAD (%)</th>
+                    <th style={{ padding: window.innerWidth < 768 ? '8px 4px' : '10px 8px' }}>SIGNAL</th>
+                  </tr>
+                </thead>
+                <tbody>
                 {marketData.length>0? (
                   marketData.map((item,i)=>(
                     <tr key={i}>
@@ -689,10 +1101,16 @@ function BotTable() {
                   </tr>
                 )}
               </tbody>
-            </table>
+              </table>
+            </div>
 
             {/* Enhanced TABELA 2 with Local Analysis */}
-            <table>
+            <div className="mobile-scroll" style={{ overflowX: 'auto', marginBottom: '20px' }}>
+              <table style={{ 
+                width: '100%',
+                minWidth: window.innerWidth < 768 ? '500px' : 'auto',
+                fontSize: window.innerWidth < 768 ? '0.85em' : '1em'
+              }}>
               <thead style={{ background:'#3a3a3a', textTransform:'uppercase'}}>
                 <tr>
                   <th>TIMEFRAME</th>
@@ -773,6 +1191,7 @@ function BotTable() {
                 )}
               </tbody>
             </table>
+            </div>
 
             {/* Selected Coin Analysis Dashboard */}
             <div style={{ 
