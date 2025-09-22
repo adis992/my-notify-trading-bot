@@ -155,6 +155,23 @@ function calculateTechnicalIndicators(prices, volumes, currentPrice) {
       else if (macd.histogram > 0) { signal = 'BUY'; buyConfidence = 65; sellConfidence = 35; }
       else if (macd.histogram < 0) { signal = 'SELL'; buyConfidence = 35; sellConfidence = 65; }
 
+      // Calculate entry, stop loss, and take profit based on signal
+      let entryPrice, stopLoss, takeProfit;
+      
+      if (signal === 'BUY') {
+        entryPrice = currentPrice * 0.995;  // Entry 0.5% below current
+        stopLoss = currentPrice * 0.97;     // Stop Loss 3% below current  
+        takeProfit = currentPrice * 1.05;   // Take Profit 5% above current
+      } else if (signal === 'SELL') {
+        entryPrice = currentPrice * 1.005;  // Entry 0.5% above current (short entry)
+        stopLoss = currentPrice * 1.03;     // Stop Loss 3% above current (short protection)
+        takeProfit = currentPrice * 0.95;   // Take Profit 5% below current (short profit)
+      } else { // NEUTRAL
+        entryPrice = currentPrice;
+        stopLoss = currentPrice * 0.97;
+        takeProfit = currentPrice * 1.03;   // Smaller profit for neutral
+      }
+
       results.push({
         timeframe: tf,
         price: currentPrice.toFixed(2),
@@ -167,11 +184,11 @@ function calculateTechnicalIndicators(prices, volumes, currentPrice) {
         signal: signal,
         buyConfidence: buyConfidence,
         sellConfidence: sellConfidence,
-        entryPrice: (currentPrice * 0.995).toFixed(2),
-        stopLoss: (currentPrice * 0.97).toFixed(2),
-        takeProfit: (currentPrice * 1.05).toFixed(2),
-        expectedMoveUp: '3.2',
-        expectedMoveDown: '2.8'
+        entryPrice: entryPrice.toFixed(2),
+        stopLoss: stopLoss.toFixed(2),
+        takeProfit: takeProfit.toFixed(2),
+        expectedMoveUp: signal === 'BUY' ? '5.0' : signal === 'SELL' ? '-5.0' : '3.0',
+        expectedMoveDown: signal === 'BUY' ? '-3.0' : signal === 'SELL' ? '3.0' : '-3.0'
       });
     } catch (error) {
       console.error(`Error calculating indicators for ${tf}:`, error);
