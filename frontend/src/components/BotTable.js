@@ -112,6 +112,7 @@ function BotTable() {
   );
   const [isLoading, setIsLoading] = useState(false);
   const [connectionError, setConnectionError] = useState(null);
+  const [isWakingUp, setIsWakingUp] = useState(false);
   const [lastUpdateTime, setLastUpdateTime] = useState(null);
   const [localAnalysis, setLocalAnalysis] = useState([]);
   const [showSettings, setShowSettings] = useState(false);
@@ -165,7 +166,7 @@ function BotTable() {
     else if (rsi > 70) { rsiSignal = 'SELL'; rsiConfidence = 15; }
     else if (rsi < 40) { rsiSignal = 'WEAK_BUY'; rsiConfidence = 8; }
     else if (rsi > 60) { rsiSignal = 'WEAK_SELL'; rsiConfidence = 8; }
-    signals.push({ indicator: 'RSI', value: rsi.toFixed(2), signal: rsiSignal, confidence: rsiConfidence });
+    signals.push({ indicator: 'RSI', value: (typeof rsi === 'number' ? rsi.toFixed(2) : 'N/A'), signal: rsiSignal, confidence: rsiConfidence });
     totalConfidence += rsiConfidence;
 
     // MACD Histogram (20% weight)
@@ -175,7 +176,7 @@ function BotTable() {
     else if (macd.histogram < -0.01) { macdSignal = 'SELL'; macdConfidence = 20; }
     else if (macd.histogram > 0) { macdSignal = 'WEAK_BUY'; macdConfidence = 10; }
     else if (macd.histogram < 0) { macdSignal = 'WEAK_SELL'; macdConfidence = 10; }
-    signals.push({ indicator: 'MACD', value: macd.histogram.toFixed(4), signal: macdSignal, confidence: macdConfidence });
+    signals.push({ indicator: 'MACD', value: (typeof macd.histogram === 'number' ? macd.histogram.toFixed(4) : 'N/A'), signal: macdSignal, confidence: macdConfidence });
     totalConfidence += macdConfidence;
 
     // Stochastic (10% weight)
@@ -185,7 +186,7 @@ function BotTable() {
     else if (stoch.k > 80) { stochSignal = 'SELL'; stochConfidence = 10; }
     else if (stoch.k < 30) { stochSignal = 'WEAK_BUY'; stochConfidence = 5; }
     else if (stoch.k > 70) { stochSignal = 'WEAK_SELL'; stochConfidence = 5; }
-    signals.push({ indicator: 'Stochastic', value: stoch.k.toFixed(2), signal: stochSignal, confidence: stochConfidence });
+    signals.push({ indicator: 'Stochastic', value: (typeof stoch.k === 'number' ? stoch.k.toFixed(2) : 'N/A'), signal: stochSignal, confidence: stochConfidence });
     totalConfidence += stochConfidence;
 
     // Bollinger Bands (12% weight)
@@ -195,7 +196,7 @@ function BotTable() {
     else if (currentPrice >= bb.upper) { bbSignal = 'SELL'; bbConfidence = 12; }
     else if (currentPrice < bb.middle) { bbSignal = 'WEAK_BUY'; bbConfidence = 6; }
     else if (currentPrice > bb.middle) { bbSignal = 'WEAK_SELL'; bbConfidence = 6; }
-    signals.push({ indicator: 'Bollinger', value: `${((currentPrice - bb.middle) / (bb.upper - bb.lower) * 100).toFixed(1)}%`, signal: bbSignal, confidence: bbConfidence });
+    signals.push({ indicator: 'Bollinger', value: (typeof currentPrice === 'number' && typeof bb.middle === 'number' && typeof bb.upper === 'number' && typeof bb.lower === 'number' ? `${((currentPrice - bb.middle) / (bb.upper - bb.lower) * 100).toFixed(1)}%` : 'N/A'), signal: bbSignal, confidence: bbConfidence });
     totalConfidence += bbConfidence;
 
     // Williams %R (8% weight)
@@ -205,7 +206,7 @@ function BotTable() {
     else if (williamsR > -20) { wrSignal = 'SELL'; wrConfidence = 8; }
     else if (williamsR < -70) { wrSignal = 'WEAK_BUY'; wrConfidence = 4; }
     else if (williamsR > -30) { wrSignal = 'WEAK_SELL'; wrConfidence = 4; }
-    signals.push({ indicator: 'Williams %R', value: williamsR.toFixed(2), signal: wrSignal, confidence: wrConfidence });
+    signals.push({ indicator: 'Williams %R', value: (typeof williamsR === 'number' ? williamsR.toFixed(2) : 'N/A'), signal: wrSignal, confidence: wrConfidence });
     totalConfidence += wrConfidence;
 
     // Volume Analysis (10% weight)
@@ -213,7 +214,7 @@ function BotTable() {
     let volumeConfidence = 0;
     if (volumeRatio > 1.5) { volumeSignal = 'HIGH_VOLUME'; volumeConfidence = 10; }
     else if (volumeRatio < 0.5) { volumeSignal = 'LOW_VOLUME'; volumeConfidence = 5; }
-    signals.push({ indicator: 'Volume', value: `${(volumeRatio * 100).toFixed(0)}%`, signal: volumeSignal, confidence: volumeConfidence });
+    signals.push({ indicator: 'Volume', value: (typeof volumeRatio === 'number' ? `${(volumeRatio * 100).toFixed(0)}%` : 'N/A'), signal: volumeSignal, confidence: volumeConfidence });
     totalConfidence += volumeConfidence;
 
     // Price Action (5% weight)
@@ -223,7 +224,7 @@ function BotTable() {
     else if (priceChange24h < -5) { priceSignal = 'STRONG_DOWN'; priceConfidence = 5; }
     else if (priceChange24h > 2) { priceSignal = 'UP'; priceConfidence = 3; }
     else if (priceChange24h < -2) { priceSignal = 'DOWN'; priceConfidence = 3; }
-    signals.push({ indicator: 'Price Action', value: `${priceChange24h.toFixed(2)}%`, signal: priceSignal, confidence: priceConfidence });
+    signals.push({ indicator: 'Price Action', value: (typeof priceChange24h === 'number' ? `${priceChange24h.toFixed(2)}%` : 'N/A'), signal: priceSignal, confidence: priceConfidence });
     totalConfidence += priceConfidence;
 
     // Final Recommendation
@@ -240,7 +241,7 @@ function BotTable() {
       confidence: totalConfidence,
       signals,
       recommendation,
-      volatility: (volatility * 100).toFixed(2),
+      volatility: (typeof volatility === 'number' ? (volatility * 100).toFixed(2) : '0.00'),
       timestamp: new Date().toISOString()
     };
 
@@ -700,8 +701,8 @@ function BotTable() {
                         <td>{item.timeframe}</td>
                         <td style={rastStyle}>{item.buyConfidence || '0'}%</td>
                         <td style={padStyle}>{item.sellConfidence || '0'}%</td>
-                        <td>{item.rsi?.toFixed(2) || 'N/A'}</td>
-                        <td>{item.macd?.MACD?.toFixed(2) || 'N/A'}</td>
+                        <td>{typeof item.rsi === 'number' ? item.rsi.toFixed(2) : (item.rsi || 'N/A')}</td>
+                        <td>{typeof item.macd?.MACD === 'number' ? item.macd.MACD.toFixed(2) : (item.macd?.MACD || 'N/A')}</td>
                         <td style={{ 
                           color: coinAnalysis.confidence > 50 ? '#2ecc71' : coinAnalysis.confidence > 20 ? '#f39c12' : '#e74c3c',
                           fontWeight: 'bold'
@@ -729,7 +730,7 @@ function BotTable() {
                             background: predColor, color:'#000',
                             padding:'4px 6px', borderRadius:'4px'
                           }}>
-                            {item.predictedPrice?.toFixed(2) || 'N/A'}
+                            {typeof item.predictedPrice === 'number' ? item.predictedPrice.toFixed(2) : (item.predictedPrice || 'N/A')}
                           </span>
                         </td>
                         <td style={{ 
@@ -791,7 +792,7 @@ function BotTable() {
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ color: '#fff', fontWeight: 'bold' }}>Current Price</div>
                     <div style={{ color: '#3498db', fontSize: '18px' }}>
-                      ${analysis.price?.toFixed(4) || 'N/A'}
+                      ${typeof analysis.price === 'number' ? analysis.price.toFixed(4) : (analysis.price || 'N/A')}
                     </div>
                   </div>
                   <div style={{ textAlign: 'center' }}>
@@ -879,8 +880,8 @@ function BotTable() {
 
             {/* RAST/PAD & prosječni PREDICT */}
             <div style={{ marginTop:'20px', textAlign:'center'}}>
-              <p><strong>Ukupni zbroj RAST(%)</strong>: {totalRast.toFixed(2)}%</p>
-              <p><strong>Ukupni zbroj PAD(%)</strong>: {totalPad.toFixed(2)}%</p>
+              <p><strong>Ukupni zbroj RAST(%)</strong>: {isNaN(totalRast) ? '0.00' : totalRast.toFixed(2)}%</p>
+              <p><strong>Ukupni zbroj PAD(%)</strong>: {isNaN(totalPad) ? '0.00' : totalPad.toFixed(2)}%</p>
               {avgPredict!=='-' && (
                 <p>
                   <strong>Ukupan (prosječni) PREDICT</strong>:

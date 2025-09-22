@@ -4,12 +4,12 @@ import axios from 'axios';
 const getApiUrls = () => {
   const customApiUrl = localStorage.getItem('trading_api_url');
   
-  // Default backend URLs
-  const PRODUCTION_API_URL = "https://my-notify-trading-bot-coingecko.onrender.com";
+  // Default backend URLs - Use improved Render backend with caching
+  const PRODUCTION_API_URL = "https://my-notify-trading-bot.onrender.com";
   const LOCAL_API_URL = "http://localhost:4000";
   
   // If custom API is set and it's our backend, use it
-  if (customApiUrl && (customApiUrl.includes('my-notify-trading-bot') || customApiUrl.includes('localhost'))) {
+  if (customApiUrl && customApiUrl.includes('my-notify-trading-bot')) {
     return customApiUrl;
   }
   
@@ -52,6 +52,7 @@ export const fetchMarketData = async (coin) => {
         const API_BASE_URL = getApiUrls();
         const apiClient = createApiClient();
         console.log(`🚀 Fetching real-time data from: ${API_BASE_URL}`);
+        
         const response = await apiClient.get(`${API_BASE_URL}/api/getAllIndicators?coin=${coin}`);
         return response.data.success ? response.data.data : [];
     });

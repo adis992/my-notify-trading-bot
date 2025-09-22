@@ -16,33 +16,44 @@ const Settings = ({ isOpen, onClose }) => {
       requiresKey: false
     },
     {
-      name: 'Production Backend (Recommended)',
-      url: 'https://my-notify-trading-bot-coingecko.onrender.com',
-      description: 'Updated backend server with CoinGecko API integration',
-      requiresKey: false
-    },
-    {
-      name: 'Legacy Backend (May not work)',
-      url: 'https://my-notify-trading-bot.onrender.com',
-      description: 'Old backend with Binance API - may return fallback data',
-      requiresKey: false
-    },
-    {
       name: 'CoinGecko Direct (CORS Issues)',
       url: 'https://api.coingecko.com/api/v3',
       description: 'Free API, 100 calls/minute limit - May not work due to CORS',
+      requiresKey: false
+    },
+    {
+      name: 'CoinGecko Pro Direct (CORS Issues)',
+      url: 'https://pro-api.coingecko.com/api/v3',
+      description: 'Paid API, higher limits - May not work due to CORS',
+      requiresKey: true
+    },
+    {
+      name: 'Backend Proxy (Recommended)',
+      url: 'https://my-notify-trading-bot.onrender.com',
+      description: 'Backend server that proxies CoinGecko API',
       requiresKey: false
     }
   ];
 
   useEffect(() => {
-    // Load saved settings
-    const savedApiUrl = localStorage.getItem('trading_api_url') || 'http://localhost:4000';
+    // Auto-detect environment and set appropriate defaults
+    const isProduction = window.location.hostname.includes('github.io');
+    const defaultApiUrl = isProduction 
+      ? 'https://my-notify-trading-bot.onrender.com'
+      : 'http://localhost:4000';
+    
+    // Load saved settings or use environment defaults
+    const savedApiUrl = localStorage.getItem('trading_api_url') || defaultApiUrl;
     const savedApiKey = localStorage.getItem('trading_api_key') || '';
     const savedRefreshInterval = localStorage.getItem('trading_refresh_interval') || '60';
     const savedMaxHistoryDays = localStorage.getItem('trading_max_history_days') || '7';
 
-    setApiUrl(savedApiUrl);
+    // Force production to use backend if CoinGecko direct was saved
+    const finalApiUrl = isProduction && savedApiUrl.includes('coingecko.com') 
+      ? 'https://my-notify-trading-bot.onrender.com'
+      : savedApiUrl;
+
+    setApiUrl(finalApiUrl);
     setApiKey(savedApiKey);
     setRefreshInterval(parseInt(savedRefreshInterval));
     setMaxHistoryDays(parseInt(savedMaxHistoryDays));
@@ -59,7 +70,12 @@ const Settings = ({ isOpen, onClose }) => {
   };
 
   const resetToDefaults = () => {
-    setApiUrl('https://api.coingecko.com/api/v3');
+    const isProduction = window.location.hostname.includes('github.io');
+    const defaultApiUrl = isProduction 
+      ? 'https://my-notify-trading-bot.onrender.com'
+      : 'http://localhost:4000';
+    
+    setApiUrl(defaultApiUrl);
     setApiKey('');
     setRefreshInterval(60);
     setMaxHistoryDays(7);
