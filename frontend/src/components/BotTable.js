@@ -228,8 +228,8 @@ function BotTable() {
     totalConfidence += priceConfidence;
 
     // Final Recommendation
-    const buySignals = signals.filter(s => s.signal.includes('BUY')).reduce((sum, s) => sum + s.confidence, 0);
-    const sellSignals = signals.filter(s => s.signal.includes('SELL')).reduce((sum, s) => sum + s.confidence, 0);
+    const buySignals = signals.filter(s => s.signal && typeof s.signal === 'string' && s.signal.includes('BUY')).reduce((sum, s) => sum + s.confidence, 0);
+    const sellSignals = signals.filter(s => s.signal && typeof s.signal === 'string' && s.signal.includes('SELL')).reduce((sum, s) => sum + s.confidence, 0);
     
     let recommendation = 'HOLD';
     if (buySignals > sellSignals + 10) recommendation = 'BUY';
@@ -715,8 +715,8 @@ function BotTable() {
                         <td>
                           {coinAnalysis.signals?.slice(0, 3).map((signal, idx) => (
                             <span key={idx} style={{
-                              backgroundColor: signal.signal.includes('BUY') ? '#2ecc71' : 
-                                             signal.signal.includes('SELL') ? '#e74c3c' : '#f39c12',
+                              backgroundColor: (signal.signal && signal.signal.includes && signal.signal.includes('BUY')) ? '#2ecc71' : 
+                                             (signal.signal && signal.signal.includes && signal.signal.includes('SELL')) ? '#e74c3c' : '#f39c12',
                               color: '#000',
                               padding: '2px 4px',
                               borderRadius: '3px',

@@ -1,7 +1,8 @@
 import React from 'react';
 
 const CoinSelect = ({ selectedCoin, setSelectedCoin }) => {
-    const coins = ['bitcoin', 'ethereum', 'solana', 'cardano', 'dogecoin', 'xrp', 'litecoin', 'polkadot', 'chainlink', 'avalanche'];
+    // Only coins supported by our backend
+    const coins = ['bitcoin', 'ethereum', 'solana', 'cardano', 'ripple'];
 
     return (
         <div className="coin-selector">
