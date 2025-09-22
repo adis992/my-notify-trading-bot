@@ -349,8 +349,21 @@ function BotTable() {
         setLastUpdateTime(new Date().toLocaleTimeString());
 
         // Perform analysis on all coins
-        for (const coinData of data || []) {
-          await performLocalAnalysis(coinData);
+        if (data && data.length > 0) {
+          // Convert timeframe data to format expected by performLocalAnalysis
+          const mockCoinData = {
+            coin: selectedCoin,
+            prices: data.map(tf => parseFloat(tf.price)), // Use prices from different timeframes
+            volumes: Array(data.length).fill(1000000), // Mock volumes
+            currentPrice: parseFloat(data[0].price)
+          };
+          console.log('🔍 v2.0 Mock coinData for analysis:', mockCoinData);
+          await performLocalAnalysis(mockCoinData);
+          
+          // Refresh localAnalysis state after analysis
+          const updatedHistory = LocalDB.getHistory(selectedCoin);
+          setLocalAnalysis(updatedHistory);
+          console.log('📊 v2.0 Updated localAnalysis:', updatedHistory.length, 'entries');
         }
 
         // Load ETF data if on ETF tab
