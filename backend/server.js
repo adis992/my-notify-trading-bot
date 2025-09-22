@@ -10,8 +10,12 @@ const port = 4000;
 app.use(cors());
 app.use(express.json());
 
-// CoinGecko API configuration
+// CoinGecko API configuration with caching
 const COINGECKO_BASE = 'https://api.coingecko.com/api/v3';
+
+// Cache to reduce API calls and avoid 429 errors
+const dataCache = new Map();
+const CACHE_TTL = 60000; // 1 minute cache
 
 // CoinGecko coin ID mapping
 const COINGECKO_SYMBOLS = {
@@ -88,9 +92,22 @@ function createNeutralResult(timeframe, price = 100, reason = 'Insufficient data
   };
 }
 
-// Fetch data from CoinGecko API
+// Fetch data from CoinGecko API with caching
 async function fetchCoinGeckoData(coinId) {
+  // Check cache first
+  const cacheKey = `${coinId}_data`;
+  const cached = dataCache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+    console.log(`📦 Using cached data for ${coinId}`);
+    return cached.data;
+  }
+
   try {
+    console.log(`🔄 Fetching fresh data for ${coinId} from CoinGecko...`);
+    
+    // Add delay to respect rate limits
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
     // Get current price and market data
     const priceUrl = `${COINGECKO_BASE}/simple/price?ids=${coinId}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true`;
     const priceResponse = await axios.get(priceUrl, { timeout: 10000 });
@@ -100,8 +117,8 @@ async function fetchCoinGeckoData(coinId) {
       throw new Error(`No data for ${coinId}`);
     }
 
-    // Get historical data for technical analysis (last 30 days)
-    const historyUrl = `${COINGECKO_BASE}/coins/${coinId}/market_chart?vs_currency=usd&days=30&interval=hourly`;
+    // Get historical data for technical analysis (last 7 days only to reduce API calls)
+    const historyUrl = `${COINGECKO_BASE}/coins/${coinId}/market_chart?vs_currency=usd&days=7&interval=hourly`;
     const historyResponse = await axios.get(historyUrl, { timeout: 15000 });
     const historyData = historyResponse.data;
 
@@ -109,19 +126,33 @@ async function fetchCoinGeckoData(coinId) {
     const prices = historyData.prices.map(p => p[1]);
     const volumes = historyData.total_volumes.map(v => v[1]);
     
-    // Use last 100 data points for analysis
+    // Use last 50 data points for analysis (reduced from 100)
     const analysisData = {
-      prices: prices.slice(-100),
-      volumes: volumes.slice(-100),
+      prices: prices.slice(-50),
+      volumes: volumes.slice(-50),
       currentPrice: priceData.usd,
       change24h: priceData.usd_24h_change || 0,
       volume24h: priceData.usd_24h_vol || 0,
       marketCap: priceData.usd_market_cap || 0
     };
 
+    // Cache the result
+    dataCache.set(cacheKey, {
+      data: analysisData,
+      timestamp: Date.now()
+    });
+
     return analysisData;
   } catch (error) {
     console.error(`CoinGecko fetch error for ${coinId}:`, error.message);
+    
+    // Return cached data if available, even if expired
+    const expiredCache = dataCache.get(cacheKey);
+    if (expiredCache) {
+      console.log(`⚠️ Using expired cache for ${coinId} due to API error`);
+      return expiredCache.data;
+    }
+    
     throw error;
   }
 }
@@ -478,6 +509,32 @@ app.get('/api/getAllIndicators', async (req, res) => {
     console.error('Main error:', err);
     return res.status(500).json({ success: false, error: err.message });
   }
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  return res.json({ 
+    success: true, 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    message: 'Backend server is running'
+  });
+});
+
+// Root endpoint
+app.get('/', (req, res) => {
+  return res.json({ 
+    success: true, 
+    message: 'Crypto Trading Bot API', 
+    version: '1.0.0',
+    endpoints: [
+      'GET /api/getAllIndicators?coin=bitcoin',
+      'GET /api/logs',
+      'GET /api/tradeHistory',
+      'GET /health'
+    ]
+  });
 });
 
 // /api/logs
