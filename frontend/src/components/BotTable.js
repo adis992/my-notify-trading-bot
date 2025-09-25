@@ -526,24 +526,98 @@ function BotTable() {
     // Clear old cached data that contains static prices
   const clearOldCachedData = () => {
     try {
-      console.log('🧹 Clearing old cached data with static prices...');
+      console.log('🧹 FORCE CLEARING ALL cached data with static prices...');
       
-      // Clear old ETF data
-      localStorage.removeItem('etf_data');
-      localStorage.removeItem('etf_data_timestamp');
+      // Clear ALL localStorage with old static prices
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (
+          key.includes('etf_data') ||
+          key.includes('analysis_history') ||
+          key.includes('tradeHistory') ||
+          key.includes('trade_data') ||
+          key.includes('bot_data') ||
+          key.includes('221') // Remove any data containing the static SOL price
+        )) {
+          keysToRemove.push(key);
+        }
+      }
       
-      // Clear old analysis data for all coins
+      keysToRemove.forEach(key => {
+        localStorage.removeItem(key);
+        console.log(`🗑️ Removed cached key: ${key}`);
+      });
+      
+      // Clear old analysis data for all coins  
       const coins = ['btc', 'eth', 'sol', 'ada', 'xrp', 'bnb', 'doge', 'avax', 'dot', 'link'];
       coins.forEach(coin => {
         localStorage.removeItem(`analysis_history_${coin}`);
         localStorage.removeItem(`analysis_history_${coin}_timestamp`);
+        localStorage.removeItem(`tradeHistory_${coin}`);
+        localStorage.removeItem(`trade_${coin}`);
       });
       
-      console.log('✅ Old cached data cleared - forcing realtime API data');
+      console.log('✅ ALL OLD cached data cleared - FORCING realtime API data ONLY');
     } catch (error) {
       console.warn('⚠️ Error clearing cache:', error);
     }
   };
+
+  // Calculate overall prediction statistics
+  const calculateOverallStats = () => {
+    if (!marketData || marketData.length === 0) {
+      return {
+        avgPredict: 'N/A',
+        avgPrice: 'N/A',
+        totalAccuracy: 'N/A',
+        timeframeStats: []
+      };
+    }
+
+    let totalPredicted = 0;
+    let totalCurrent = 0;
+    let count = 0;
+    
+    const timeframeStats = [];
+    const timeframes = ['1m', '15m', '1h', '4h', '12h', '1d'];
+    
+    timeframes.forEach(tf => {
+      const tfData = marketData.filter(item => item.timeframe === tf);
+      if (tfData.length > 0) {
+        const tfPredicted = tfData.reduce((sum, item) => sum + parseFloat(item.predictedPrice || item.price || 0), 0);
+        const tfCurrent = tfData.reduce((sum, item) => sum + parseFloat(item.price || 0), 0);
+        const tfAvgPredict = tfPredicted / tfData.length;
+        const tfAvgPrice = tfCurrent / tfData.length;
+        const tfAccuracy = tfAvgPrice > 0 ? ((tfAvgPredict / tfAvgPrice) * 100) : 0;
+        
+        timeframeStats.push({
+          timeframe: tf,
+          avgPredict: tfAvgPredict.toFixed(2),
+          avgPrice: tfAvgPrice.toFixed(2),
+          accuracy: tfAccuracy.toFixed(1),
+          count: tfData.length
+        });
+        
+        totalPredicted += tfPredicted;
+        totalCurrent += tfCurrent;
+        count += tfData.length;
+      }
+    });
+
+    const overallAvgPredict = count > 0 ? (totalPredicted / count).toFixed(2) : 'N/A';
+    const overallAvgPrice = count > 0 ? (totalCurrent / count).toFixed(2) : 'N/A';
+    const overallAccuracy = totalCurrent > 0 ? (((totalPredicted / count) / (totalCurrent / count)) * 100).toFixed(1) : 'N/A';
+
+    return {
+      avgPredict: overallAvgPredict,
+      avgPrice: overallAvgPrice,
+      totalAccuracy: overallAccuracy,
+      timeframeStats
+    };
+  };
+
+  const overallStats = calculateOverallStats();
 
   useEffect(() => {
     // Clear old data first
@@ -841,6 +915,33 @@ function BotTable() {
           >
             {isLoading ? '⏳ Loading...' : '🔄 Refresh'}
           </button>
+        </div>
+
+        {/* Overall Prediction Statistics */}
+        <div style={{
+          background: 'linear-gradient(135deg, #2c3e50, #34495e)',
+          border: '2px solid #3498db',
+          borderRadius: '12px',
+          padding: '15px',
+          margin: '10px 0',
+          textAlign: 'center'
+        }}>
+          <div style={{ color: '#fff', fontSize: '1.1em', fontWeight: 'bold', marginBottom: '10px' }}>
+            📊 UKUPAN (prosječni) PREDICT: ${overallStats.avgPredict} (vs avgPrice: ${overallStats.avgPrice}) | Accuracy: {overallStats.totalAccuracy}%
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '15px', fontSize: '0.85em' }}>
+            {overallStats.timeframeStats.map(stat => (
+              <span key={stat.timeframe} style={{ 
+                color: stat.timeframe === selectedTimeframe ? '#f39c12' : '#bdc3c7',
+                fontWeight: stat.timeframe === selectedTimeframe ? 'bold' : 'normal'
+              }}>
+                {stat.timeframe}: ${stat.avgPredict}/${stat.avgPrice} ({stat.accuracy}%)
+              </span>
+            ))}
+          </div>
+          <div style={{ color: '#95a5a6', fontSize: '0.8em', marginTop: '5px' }}>
+            Trenutni coin: {selectedCoin.toUpperCase()} | Timeframe: {selectedTimeframe} | Svi podatci realtime iz API
+          </div>
         </div>
 
         {/* Real-time status banner */}
