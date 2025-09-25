@@ -118,6 +118,9 @@ function BotTable() {
   );
   const [isLoading, setIsLoading] = useState(false);
   const [connectionError, setConnectionError] = useState(null);
+  const [lastPrediction, setLastPrediction] = useState(null);
+  const [lastPredictionTime, setLastPredictionTime] = useState(null);
+  const [directionLog, setDirectionLog] = useState([]);
   const [isWakingUp, setIsWakingUp] = useState(false);
   const [lastUpdateTime, setLastUpdateTime] = useState(null);
   const [localAnalysis, setLocalAnalysis] = useState([]);
@@ -390,81 +393,182 @@ function BotTable() {
   }, [selectedCoin]);
 
   useEffect(() => {
+    let interval;
     const loadData = async () => {
       setIsLoading(true);
       setConnectionError(null);
-
       try {
-        // Load market data and perform local analysis
         const data = await fetchMarketData(selectedCoin);
-        console.log('🚀 API Response for', selectedCoin, ':', data);
-        console.log('🔍 Data length:', data?.length);
-        console.log('🔍 First item:', data?.[0]);
         setMarketData(data || []);
         setLastUpdateTime(new Date().toLocaleTimeString());
 
-        // Perform analysis on all coins
-        if (data && data.length > 0) {
-          // Use REAL data from backend - no more mock data!
-          const currentTimeframeData = data.find(tf => tf.timeframe === selectedTimeframe) || data[0];
-          
-          // Create analysis using REAL timeframe data for selected timeframe
-          const realAnalysisData = {
-            coin: selectedCoin,
-            confidence: parseFloat(currentTimeframeData.buyConfidence || 0) + parseFloat(currentTimeframeData.sellConfidence || 0),
-            recommendation: currentTimeframeData.signal || 'HOLD',
-            price: parseFloat(currentTimeframeData.price),
-            timestamp: new Date().toISOString(),
-            volatility: (parseFloat(currentTimeframeData.expectedMoveUp || 0) + parseFloat(currentTimeframeData.expectedMoveDown || 0)) / 2,
-            signals: [{
-              indicator: 'RSI',
-              value: currentTimeframeData.rsi || 'N/A',
-              signal: currentTimeframeData.signal || 'NEUTRAL',
-              confidence: parseFloat(currentTimeframeData.buyConfidence || 0)
-            }],
-            timeframe: currentTimeframeData.timeframe,
-            entryPrice: parseFloat(currentTimeframeData.entryPrice),
-            stopLoss: parseFloat(currentTimeframeData.stopLoss),
-            takeProfit: parseFloat(currentTimeframeData.takeProfit)
-          };
-          
-          // Save REAL analysis data
-          LocalDB.saveAnalysis(selectedCoin, realAnalysisData);
-          console.log('💾 v2.0 Saved REAL analysis for:', selectedCoin, realAnalysisData);
-          
+        // 15m timeframe: update only every 15 minutes
+        let shouldUpdate = true;
+        if (selectedTimeframe === '15m') {
+          const now = new Date();
+          const minutes = now.getMinutes();
+          // Update only if minutes is 0, 15, 30, or 45
+          if (![0, 15, 30, 45].includes(minutes)) {
+            shouldUpdate = false;
+          }
+        }
+
+        if (data && data.length > 0 && shouldUpdate) {
+          // Find all 15m candles for averaging if 15m timeframe
+          let analysisData = data;
+          if (selectedTimeframe === '15m') {
+            // Use only 15m candles, average last N (e.g. 10) for prediction
+            const tf15m = data.filter(tf => tf.timeframe === '15m');
+            if (tf15m.length > 0) {
+              // Average buy/sell confidence and indicators for last 10 15m candles
+              const last10 = tf15m.slice(-10);
+              
+              // Extract price data for technical indicators
+              const prices = last10.map(tf => parseFloat(tf.price || 0));
+              const highs = last10.map(tf => parseFloat(tf.high || tf.price || 0));
+              const lows = last10.map(tf => parseFloat(tf.low || tf.price || 0));
+              
+              // Calculate 10 key indicators
+              const rsi = calculateRSI(prices, 14);
+              const macd = calculateMACD(prices, 12, 26, 9);
+              const stoch = calculateStochastic(highs, lows, prices, 14);
+              const bb = calculateBollingerBands(prices, 20, 2);
+              const sma20 = prices.slice(-20).reduce((a, b) => a + b, 0) / Math.min(20, prices.length);
+              const ema12 = prices.slice(-12).reduce((a, b) => a + b, 0) / Math.min(12, prices.length);
+              
+              // Calculate weighted indicator scores (10 indicators)
+              let buyScore = 0, sellScore = 0;
+              
+              // 1. RSI (weight: 15%)
+              if (rsi < 30) buyScore += 15;
+              else if (rsi > 70) sellScore += 15;
+              else buyScore += (50 - rsi) * 0.3;
+              
+              // 2. MACD (weight: 15%)
+              if (macd.histogram > 0) buyScore += 15;
+              else sellScore += 15;
+              
+              // 3. Stochastic (weight: 10%)
+              if (stoch.k < 20) buyScore += 10;
+              else if (stoch.k > 80) sellScore += 10;
+              
+              // 4. Bollinger Bands (weight: 10%)
+              const currentPrice = prices[prices.length - 1];
+              if (currentPrice < bb.lower) buyScore += 10;
+              else if (currentPrice > bb.upper) sellScore += 10;
+              
+              // 5. Price vs SMA20 (weight: 10%)
+              if (currentPrice > sma20) buyScore += 10;
+              else sellScore += 10;
+              
+              // 6. Price vs EMA12 (weight: 10%)
+              if (currentPrice > ema12) buyScore += 10;
+              else sellScore += 10;
+              
+              // 7. Volume trend (weight: 10%)
+              const avgVolume = last10.reduce((sum, tf) => sum + parseFloat(tf.volume24h || 0), 0) / last10.length;
+              const recentVolume = parseFloat(last10[last10.length - 1].volume24h || 0);
+              if (recentVolume > avgVolume * 1.2) buyScore += 10;
+              
+              // 8. Price momentum (weight: 10%)
+              const priceChange = ((prices[prices.length - 1] - prices[0]) / prices[0]) * 100;
+              if (priceChange > 2) buyScore += 10;
+              else if (priceChange < -2) sellScore += 10;
+              
+              // 9. Volatility (weight: 5%)
+              const avgVol = last10.reduce((sum, tf) => sum + (parseFloat(tf.expectedMoveUp || 0) + parseFloat(tf.expectedMoveDown || 0)), 0) / last10.length;
+              if (avgVol > 10) { buyScore *= 0.8; sellScore *= 0.8; } // Reduce confidence in high volatility
+              
+              // 10. Market confidence average (weight: 5%)
+              const avgBuyConf = last10.reduce((sum, tf) => sum + parseFloat(tf.buyConfidence || 0), 0) / last10.length;
+              const avgSellConf = last10.reduce((sum, tf) => sum + parseFloat(tf.sellConfidence || 0), 0) / last10.length;
+              buyScore += avgBuyConf * 0.05;
+              sellScore += avgSellConf * 0.05;
+              
+              // Final signal determination
+              const finalBuyScore = Math.min(95, buyScore);
+              const finalSellScore = Math.min(95, sellScore);
+              const mainSignal = finalBuyScore > finalSellScore && finalBuyScore > 60 ? 'BUY' : 
+                                finalSellScore > finalBuyScore && finalSellScore > 60 ? 'SELL' : 'HOLD';
+              const confidence = Math.round(Math.max(finalBuyScore, finalSellScore));
+              
+              console.log(`🎯 15m Prediction for ${selectedCoin}: RSI=${rsi.toFixed(1)}, MACD=${macd.histogram.toFixed(4)}, Stoch=${stoch.k.toFixed(1)}, Signal=${mainSignal}, Confidence=${confidence}%`);
+              
+              const realAnalysisData = {
+                coin: selectedCoin,
+                confidence,
+                recommendation: mainSignal,
+                price: currentPrice,
+                timestamp: new Date().toISOString(),
+                volatility: avgVol,
+                signals: [
+                  { indicator: 'RSI', value: rsi.toFixed(1), signal: rsi < 30 ? 'BUY' : rsi > 70 ? 'SELL' : 'NEUTRAL', confidence: finalBuyScore },
+                  { indicator: 'MACD', value: macd.histogram.toFixed(4), signal: macd.histogram > 0 ? 'BUY' : 'SELL', confidence: finalBuyScore },
+                  { indicator: 'Stochastic', value: stoch.k.toFixed(1), signal: stoch.k < 20 ? 'BUY' : stoch.k > 80 ? 'SELL' : 'NEUTRAL', confidence: finalBuyScore }
+                ],
+                timeframe: '15m',
+                entryPrice: currentPrice,
+                stopLoss: null,
+                takeProfit: null
+              };
+              LocalDB.saveAnalysis(selectedCoin, realAnalysisData);
+              setLastPrediction(realAnalysisData);
+              setLastPredictionTime(new Date());
+              // Direction change log
+              if (!lastPrediction || lastPrediction.recommendation !== mainSignal) {
+                console.log(`🔄 Direction change for ${selectedCoin} (15m): ${lastPrediction ? lastPrediction.recommendation : 'START'} → ${mainSignal}`);
+                setDirectionLog(prev => [...prev.slice(-4), { time: new Date().toLocaleTimeString(), from: lastPrediction ? lastPrediction.recommendation : '', to: mainSignal }]);
+              }
+            }
+          }
+          // For other timeframes, use default logic
+          if (selectedTimeframe !== '15m') {
+            const currentTimeframeData = data.find(tf => tf.timeframe === selectedTimeframe) || data[0];
+            const realAnalysisData = {
+              coin: selectedCoin,
+              confidence: parseFloat(currentTimeframeData.buyConfidence || 0) + parseFloat(currentTimeframeData.sellConfidence || 0),
+              recommendation: currentTimeframeData.signal || 'HOLD',
+              price: parseFloat(currentTimeframeData.price),
+              timestamp: new Date().toISOString(),
+              volatility: (parseFloat(currentTimeframeData.expectedMoveUp || 0) + parseFloat(currentTimeframeData.expectedMoveDown || 0)) / 2,
+              signals: [{
+                indicator: 'RSI',
+                value: currentTimeframeData.rsi || 'N/A',
+                signal: currentTimeframeData.signal || 'NEUTRAL',
+                confidence: parseFloat(currentTimeframeData.buyConfidence || 0)
+              }],
+              timeframe: currentTimeframeData.timeframe,
+              entryPrice: parseFloat(currentTimeframeData.entryPrice),
+              stopLoss: parseFloat(currentTimeframeData.stopLoss),
+              takeProfit: parseFloat(currentTimeframeData.takeProfit)
+            };
+            LocalDB.saveAnalysis(selectedCoin, realAnalysisData);
+            setLastPrediction(realAnalysisData);
+            setLastPredictionTime(new Date());
+            if (!lastPrediction || lastPrediction.recommendation !== realAnalysisData.recommendation) {
+              setDirectionLog(prev => [...prev, { time: new Date().toLocaleTimeString(), from: lastPrediction ? lastPrediction.recommendation : '', to: realAnalysisData.recommendation }]);
+            }
+          }
           // Generate chart data from real timeframe data
           const chartHistoryData = generateChartHistory(data, selectedCoin);
           chartHistoryData.forEach(entry => {
             LocalDB.saveAnalysis(selectedCoin, entry);
           });
-          
-          // Calculate and log main prediction for debugging
-          const mainPred = calculateMainPrediction(data, selectedTimeframe);
-          console.log('🎯 v2.0 Main Prediction for', selectedCoin, ':', mainPred);
-          
           // Refresh localAnalysis state after real analysis
           const updatedHistory = LocalDB.getHistory(selectedCoin);
           setLocalAnalysis(updatedHistory);
-          console.log('📊 v2.0 Updated localAnalysis with REAL data:', updatedHistory.length, 'entries');
         }
-
         // Load ETF data if on ETF tab
         if (activeTab === 'etf') {
           await fetchETFData();
         }
-
         // Load logs and trade history
         const logsResult = await fetchLogs();
         setLogs(logsResult || []);
-        
         const tradesResult = await fetchTradeHistory();
         setTradeHistory(tradesResult || []);
-
       } catch (error) {
-        console.error('Error loading data:', error);
         setConnectionError('Greška u učitavanju podataka. Koristim lokalne podatke...');
-        
-        // Load cached data
         const cachedMarket = LocalDB.get('market_data');
         const cachedETF = LocalDB.get('etf_data');
         if (cachedMarket) setMarketData(cachedMarket);
@@ -473,10 +577,15 @@ function BotTable() {
         setIsLoading(false);
       }
     };
-
     loadData();
-    const refreshInterval = localStorage.getItem('trading_refresh_interval') || '60';
-    const interval = setInterval(loadData, parseInt(refreshInterval) * 1000); // Use configurable interval
+    // Set interval: 15m timeframe updates every minute but only processes on 0,15,30,45
+    let refreshInterval = 60;
+    if (selectedTimeframe === '15m') {
+      refreshInterval = 60; // check every minute, but only update on correct minute
+    } else {
+      refreshInterval = parseInt(localStorage.getItem('trading_refresh_interval') || '60');
+    }
+    interval = setInterval(loadData, refreshInterval * 1000);
     return () => clearInterval(interval);
   }, [selectedCoin, selectedTimeframe, activeTab]);
 
@@ -956,6 +1065,44 @@ function BotTable() {
                       }}>
                         <h3>⏳ Učitavanje glavnog prediction-a...</h3>
                         <p>Molimo sačekajte da se učitaju svi timeframe podaci.</p>
+                      </div>
+                    )}
+
+                    {/* Direction Change Log */}
+                    {directionLog.length > 0 && (
+                      <div style={{
+                        background: 'linear-gradient(135deg, #34495e, #2c3e50)',
+                        border: '2px solid #3498db',
+                        borderRadius: '12px',
+                        padding: '15px',
+                        margin: '15px 0',
+                        maxHeight: '150px',
+                        overflowY: 'auto'
+                      }}>
+                        <h4 style={{ color: '#3498db', textAlign: 'center', marginBottom: '10px' }}>
+                          📊 Promene Smera ({selectedTimeframe})
+                        </h4>
+                        <div style={{ fontSize: '0.9em' }}>
+                          {directionLog.slice(-5).reverse().map((log, idx) => (
+                            <div key={idx} style={{
+                              padding: '8px',
+                              marginBottom: '5px',
+                              background: 'rgba(52, 152, 219, 0.1)',
+                              borderRadius: '6px',
+                              borderLeft: '3px solid #3498db'
+                            }}>
+                              <span style={{ color: '#f39c12', fontWeight: 'bold' }}>{log.time}</span>
+                              {' - '}
+                              <span style={{ color: log.from === 'BUY' ? '#2ecc71' : log.from === 'SELL' ? '#e74c3c' : '#f39c12' }}>
+                                {log.from || 'START'}
+                              </span>
+                              {' → '}
+                              <span style={{ color: log.to === 'BUY' ? '#2ecc71' : log.to === 'SELL' ? '#e74c3c' : '#f39c12' }}>
+                                {log.to}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
 
