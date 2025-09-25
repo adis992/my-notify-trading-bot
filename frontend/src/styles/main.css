@@ -1,11 +1,28 @@
 html {
-  zoom: 75%;
+  zoom: 85%;
+  font-size: 14px; /* Umanjeni font za sve */
 }
 body {
   font-family: Arial, sans-serif;
   background-color: #000000;
   color: white;
   text-align: center;
+  font-size: 0.9em; /* Dodatno umanjenje */
+}
+
+/* Globalno umanjenje fontova */
+* {
+  font-size: inherit;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-size: 1em !important;
+  margin: 8px 0 !important;
+}
+
+button {
+  font-size: 0.85em !important;
+  padding: 8px 12px !important;
 }
 
 .bot-container {

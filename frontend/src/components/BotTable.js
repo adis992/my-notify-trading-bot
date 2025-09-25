@@ -609,7 +609,7 @@ function BotTable() {
       
       return {
         type: 'DIRECTION_CHANGE',
-        message: `⚠️ PAŽNJA: Moguja promena smera! ${directionArrow} Volatilnost: ${volatility.toFixed(1)}%`,
+        message: `⚠️ PAŽNJA: Moguća promjena smjera! ${directionArrow} Volatilnost: ${volatility.toFixed(1)}%`,
         severity: volatility > 10 ? 'HIGH' : 'MEDIUM'
       };
     }

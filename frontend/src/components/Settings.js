@@ -6,6 +6,7 @@ const Settings = ({ isOpen, onClose }) => {
   const [refreshInterval, setRefreshInterval] = useState(60);
   const [maxHistoryDays, setMaxHistoryDays] = useState(7);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [isLocked] = useState(true); // LOCKED MODE - Read-only display
 
   // API URL presets
   const apiPresets = [
@@ -131,7 +132,7 @@ const Settings = ({ isOpen, onClose }) => {
           paddingBottom: '15px'
         }}>
           <h2 style={{ margin: 0, color: '#fff' }}>
-            ⚙️ Trading Bot Settings
+            ⚙️ Trading Bot Settings {isLocked && '🔒'}
           </h2>
           <button
             onClick={onClose}
@@ -149,6 +150,21 @@ const Settings = ({ isOpen, onClose }) => {
           </button>
         </div>
 
+        {/* Locked Mode Notice */}
+        {isLocked && (
+          <div style={{
+            background: '#f39c12',
+            color: '#000',
+            padding: '12px',
+            borderRadius: '8px',
+            marginBottom: '20px',
+            fontWeight: 'bold',
+            textAlign: 'center'
+          }}>
+            🔒 SETTINGS SU ZAKLJUČANI - Samo prikaz trenutnih postavki
+          </div>
+        )}
+
         {/* API URL Selection */}
         <div style={{ marginBottom: '20px' }}>
           <h3 style={{ color: '#f39c12', marginBottom: '10px' }}>
@@ -162,11 +178,13 @@ const Settings = ({ isOpen, onClose }) => {
               {apiPresets.map((preset, idx) => (
                 <div
                   key={idx}
-                  onClick={() => setApiUrl(preset.url)}
+                  onClick={() => !isLocked && setApiUrl(preset.url)}
                   style={{
-                    background: apiUrl === preset.url ? '#27ae60' : '#3a3a3a',
-                    border: '1px solid #555',
+                    background: apiUrl === preset.url ? '#27ae60' : (isLocked ? '#2a2a2a' : '#3a3a3a'),
+                    border: `1px solid ${isLocked ? '#333' : '#555'}`,
                     borderRadius: '6px',
+                    cursor: isLocked ? 'not-allowed' : 'pointer',
+                    opacity: isLocked ? 0.6 : 1,
                     padding: '10px',
                     cursor: 'pointer',
                     transition: 'all 0.3s'
@@ -195,17 +213,28 @@ const Settings = ({ isOpen, onClose }) => {
             <input
               type="text"
               value={apiUrl}
-              onChange={(e) => setApiUrl(e.target.value)}
+              onChange={(e) => !isLocked && setApiUrl(e.target.value)}
+              disabled={isLocked}
               style={{
                 width: '100%',
                 padding: '8px',
-                background: '#333',
-                border: '1px solid #555',
+                background: isLocked ? '#1a1a1a' : '#333',
+                border: `1px solid ${isLocked ? '#333' : '#555'}`,
                 borderRadius: '4px',
-                color: '#fff'
+                color: isLocked ? '#666' : '#fff',
+                cursor: isLocked ? 'not-allowed' : 'text'
               }}
               placeholder="https://api.coingecko.com/api/v3"
             />
+            {isLocked && (
+              <div style={{ 
+                color: '#f39c12', 
+                fontSize: '12px', 
+                marginTop: '5px' 
+              }}>
+                🔒 Settings su zaključani - samo prikaz
+              </div>
+            )}
           </div>
 
           {(apiUrl.includes('pro-api.coingecko.com') || showAdvanced) && (
@@ -216,14 +245,16 @@ const Settings = ({ isOpen, onClose }) => {
               <input
                 type="password"
                 value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
+                onChange={(e) => !isLocked && setApiKey(e.target.value)}
+                disabled={isLocked}
                 style={{
                   width: '100%',
                   padding: '8px',
-                  background: '#333',
-                  border: '1px solid #555',
+                  background: isLocked ? '#1a1a1a' : '#333',
+                  border: `1px solid ${isLocked ? '#333' : '#555'}`,
                   borderRadius: '4px',
-                  color: '#fff'
+                  color: isLocked ? '#666' : '#fff',
+                  cursor: isLocked ? 'not-allowed' : 'text'
                 }}
                 placeholder="Enter your API key"
               />
