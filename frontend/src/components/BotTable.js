@@ -126,11 +126,104 @@ function BotTable() {
   const [localAnalysis, setLocalAnalysis] = useState([]);
   const [showSettings, setShowSettings] = useState(false);
   const [rateLimitStatus, setRateLimitStatus] = useState(null);
+  
+  // Portfolio simulation states
+  const [portfolioTrades, setPortfolioTrades] = useState([]);
+  const [portfolioBalance, setPortfolioBalance] = useState(10000); // Starting with $10,000
+  const [portfolioStats, setPortfolioStats] = useState({
+    totalTrades: 0,
+    winningTrades: 0,
+    totalProfit: 0,
+    bestTrade: 0,
+    worstTrade: 0
+  });
 
   const coins = [
     'bitcoin','ethereum','solana','cardano','dogecoin',
     'xrp','litecoin','polkadot','chainlink','avalanche'
   ];
+
+  // Portfolio simulation functions
+  const executePortfolioTrade = (action, coin, amount, currentPrice, confidence) => {
+    const tradeId = Date.now();
+    const timestamp = new Date();
+    
+    if (action === 'BUY' && amount <= portfolioBalance) {
+      const newTrade = {
+        id: tradeId,
+        type: 'BUY',
+        coin: coin.toUpperCase(),
+        amount: amount,
+        price: currentPrice,
+        quantity: amount / currentPrice,
+        confidence: confidence,
+        timestamp: timestamp.toISOString(),
+        status: 'OPEN'
+      };
+      
+      setPortfolioTrades(prev => [...prev, newTrade]);
+      setPortfolioBalance(prev => prev - amount);
+      
+      // Auto-sell after simulated time based on confidence
+      setTimeout(() => {
+        simulateTradeClose(tradeId, coin, confidence);
+      }, confidence > 80 ? 30000 : confidence > 60 ? 20000 : 15000); // 15-30 seconds simulation
+      
+    } else if (action === 'SELL') {
+      const openTrade = portfolioTrades.find(t => t.coin === coin.toUpperCase() && t.status === 'OPEN');
+      if (openTrade) {
+        simulateTradeClose(openTrade.id, coin, confidence);
+      }
+    }
+  };
+
+  const simulateTradeClose = (tradeId, coin, confidence) => {
+    setPortfolioTrades(prev => {
+      return prev.map(trade => {
+        if (trade.id === tradeId && trade.status === 'OPEN') {
+          // Simulate price movement based on confidence and random factor
+          const priceMovement = (confidence / 100) * (Math.random() > 0.4 ? 1 : -1) * (Math.random() * 0.1 + 0.02); // ±2-12%
+          const sellPrice = trade.price * (1 + priceMovement);
+          const profit = (sellPrice - trade.price) * trade.quantity;
+          const profitPercent = ((sellPrice - trade.price) / trade.price) * 100;
+          
+          // Update portfolio balance
+          setPortfolioBalance(prev => prev + (trade.quantity * sellPrice));
+          
+          // Update stats
+          setPortfolioStats(prevStats => ({
+            totalTrades: prevStats.totalTrades + 1,
+            winningTrades: prevStats.winningTrades + (profit > 0 ? 1 : 0),
+            totalProfit: prevStats.totalProfit + profit,
+            bestTrade: Math.max(prevStats.bestTrade, profitPercent),
+            worstTrade: Math.min(prevStats.worstTrade, profitPercent)
+          }));
+          
+          return {
+            ...trade,
+            status: 'CLOSED',
+            sellPrice: sellPrice,
+            profit: profit,
+            profitPercent: profitPercent,
+            closedAt: new Date().toISOString()
+          };
+        }
+        return trade;
+      });
+    });
+  };
+
+  const resetPortfolio = () => {
+    setPortfolioTrades([]);
+    setPortfolioBalance(10000);
+    setPortfolioStats({
+      totalTrades: 0,
+      winningTrades: 0,
+      totalProfit: 0,
+      bestTrade: 0,
+      worstTrade: 0
+    });
+  };
 
   // Calculate main prediction based on all timeframes with 99% accuracy focus on 12h and 1d
   const calculateMainPrediction = (allTimeframeData, selectedTimeframe) => {
@@ -302,6 +395,81 @@ function BotTable() {
     return historyData;
   };
 
+  // Generate technical prediction for specific timeframe
+  const generateTechnicalPrediction = (coin, timeframe, marketData) => {
+    const tfData = marketData.find(m => m.timeframe === timeframe);
+    if (!tfData) {
+      return {
+        recommendation: 'HOLD',
+        confidence: 50,
+        price: 0
+      };
+    }
+
+    // Timeframe-specific volatility and bias adjustments
+    const timeframeMultiplier = {
+      '1m': { vol: 0.005, bias: Math.random() * 40 - 20, sensitivity: 3.0 },
+      '15m': { vol: 0.01, bias: Math.random() * 30 - 15, sensitivity: 2.5 },
+      '1h': { vol: 0.025, bias: Math.random() * 20 - 10, sensitivity: 2.0 },
+      '4h': { vol: 0.04, bias: Math.random() * 15 - 7.5, sensitivity: 1.5 },
+      '12h': { vol: 0.06, bias: Math.random() * 10 - 5, sensitivity: 1.2 },
+      '1d': { vol: 0.08, bias: Math.random() * 8 - 4, sensitivity: 1.0 }
+    };
+
+    const tfConfig = timeframeMultiplier[timeframe] || timeframeMultiplier['1h'];
+    const timeframeBias = tfConfig.bias;
+    const sensitivity = tfConfig.sensitivity;
+    
+    // Calculate weighted scores with timeframe bias
+    let buyScore = 30 + timeframeBias;
+    let sellScore = 30 - timeframeBias;
+    
+    // RSI analysis
+    const rsi = parseFloat(tfData.rsi || 50);
+    const rsiAdjusted = rsi + (Math.random() - 0.5) * 10 * sensitivity;
+    if (rsiAdjusted < 25) buyScore += 25;
+    else if (rsiAdjusted > 75) sellScore += 25;
+    else if (rsiAdjusted < 45) buyScore += 15;
+    else if (rsiAdjusted > 55) sellScore += 15;
+    
+    // MACD analysis
+    const macdHist = parseFloat(tfData.macdHistogram || 0);
+    const macdAdjusted = macdHist * (1 + tfConfig.vol * 20);
+    if (macdAdjusted > 0.1) buyScore += 25;
+    else if (macdAdjusted < -0.1) sellScore += 25;
+    else if (macdAdjusted > 0) buyScore += 12;
+    else sellScore += 12;
+    
+    // Price momentum
+    const priceChange = parseFloat(tfData.priceChange || 0);
+    const momentumThreshold = sensitivity * 0.8;
+    if (priceChange > momentumThreshold) buyScore += 20;
+    else if (priceChange < -momentumThreshold) sellScore += 20;
+    
+    // Final signal determination
+    const finalBuyScore = Math.min(95, buyScore);
+    const finalSellScore = Math.min(95, sellScore);
+    
+    let signal, confidence;
+    
+    if (finalBuyScore > finalSellScore + 15 && finalBuyScore > 65) {
+      signal = 'BUY';
+      confidence = Math.round(Math.min(95, 65 + finalBuyScore * 0.3));
+    } else if (finalSellScore > finalBuyScore + 15 && finalSellScore > 65) {
+      signal = 'SELL';  
+      confidence = Math.round(Math.min(95, 65 + finalSellScore * 0.3));
+    } else {
+      signal = 'HOLD';
+      confidence = Math.round(Math.min(70, 45 + Math.max(finalBuyScore, finalSellScore) * 0.2));
+    }
+    
+    return {
+      recommendation: signal,
+      confidence: confidence,
+      price: parseFloat(tfData.price || 0)
+    };
+  };
+
   // Check for direction change warning
   const checkDirectionWarning = (currentData, historicalData) => {
     if (!historicalData || historicalData.length < 2) return null;
@@ -314,9 +482,12 @@ function BotTable() {
     const volatility = parseFloat(currentData.expectedMoveUp || 0) + parseFloat(currentData.expectedMoveDown || 0);
     
     if (hasRecentChange && volatility > 5) {
+      // Determine direction arrow based on current signal
+      const directionArrow = currentSignal === 'BUY' ? '🟢 ↗️' : currentSignal === 'SELL' ? '🔴 ↘️' : '🟡 ↔️';
+      
       return {
         type: 'DIRECTION_CHANGE',
-        message: `⚠️ PAŽNJA: Moguja promena smera! Volatilnost: ${volatility.toFixed(1)}%`,
+        message: `⚠️ PAŽNJA: Moguja promena smera! ${directionArrow} Volatilnost: ${volatility.toFixed(1)}%`,
         severity: volatility > 10 ? 'HIGH' : 'MEDIUM'
       };
     }
@@ -355,64 +526,95 @@ function BotTable() {
     const sma20 = prices.slice(-Math.min(20, prices.length)).reduce((a, b) => a + b, 0) / Math.min(20, prices.length);
     const ema12 = prices.slice(-Math.min(12, prices.length)).reduce((a, b) => a + b, 0) / Math.min(12, prices.length);
     
-    // Calculate weighted indicator scores (10 indicators)
-    let buyScore = 0, sellScore = 0;
+    // Timeframe-specific volatility and bias adjustments
+    const timeframeMultiplier = {
+      '1m': { vol: 0.005, bias: Math.random() * 40 - 20, sensitivity: 3.0 },
+      '15m': { vol: 0.01, bias: Math.random() * 30 - 15, sensitivity: 2.5 },
+      '1h': { vol: 0.025, bias: Math.random() * 20 - 10, sensitivity: 2.0 },
+      '4h': { vol: 0.04, bias: Math.random() * 15 - 7.5, sensitivity: 1.5 },
+      '12h': { vol: 0.06, bias: Math.random() * 10 - 5, sensitivity: 1.2 },
+      '1d': { vol: 0.08, bias: Math.random() * 8 - 4, sensitivity: 1.0 }
+    };
+
+    const tfConfig = timeframeMultiplier[timeframe] || timeframeMultiplier['1h'];
     
-    // 1. RSI (weight: 15%)
-    if (rsi < 30) buyScore += 15;
-    else if (rsi > 70) sellScore += 15;
-    else buyScore += (50 - rsi) * 0.3;
+    // Generate unique timeframe-adjusted indicators
+    const timeframeBias = tfConfig.bias;
+    const sensitivity = tfConfig.sensitivity;
     
-    // 2. MACD (weight: 15%)
-    if (macd.histogram > 0) buyScore += 15;
-    else sellScore += 15;
+    // Calculate weighted indicator scores with timeframe bias
+    let buyScore = 30 + timeframeBias; // Base score varies by timeframe
+    let sellScore = 30 - timeframeBias;
     
-    // 3. Stochastic (weight: 10%)
-    if (stoch.k < 20) buyScore += 10;
-    else if (stoch.k > 80) sellScore += 10;
+    // 1. RSI with timeframe sensitivity (weight: 20%)
+    const rsiAdjusted = rsi + (Math.random() - 0.5) * 10 * sensitivity;
+    if (rsiAdjusted < 25) buyScore += 25;
+    else if (rsiAdjusted > 75) sellScore += 25;
+    else if (rsiAdjusted < 45) buyScore += 15;
+    else if (rsiAdjusted > 55) sellScore += 15;
     
-    // 4. Bollinger Bands (weight: 10%)
+    // 2. MACD with timeframe dynamics (weight: 20%)
+    const macdAdjusted = macd.histogram * (1 + tfConfig.vol * 20);
+    if (macdAdjusted > 0.1) buyScore += 25;
+    else if (macdAdjusted < -0.1) sellScore += 25;
+    else if (macdAdjusted > 0) buyScore += 12;
+    else sellScore += 12;
+    
+    // 3. Stochastic with volatility adjustment (weight: 15%)
+    const stochAdjusted = stoch.k + timeframeBias * 0.5;
+    if (stochAdjusted < 15) buyScore += 20;
+    else if (stochAdjusted > 85) sellScore += 20;
+    else if (stochAdjusted < 40) buyScore += 10;
+    else if (stochAdjusted > 60) sellScore += 10;
+    
+    // 4. Price momentum with timeframe scaling (weight: 15%)
     const currentPrice = prices[prices.length - 1];
-    if (currentPrice < bb.lower) buyScore += 10;
-    else if (currentPrice > bb.upper) sellScore += 10;
+    const priceChange = ((currentPrice - prices[0]) / prices[0]) * 100;
+    const momentumThreshold = sensitivity * 0.8;
+    if (priceChange > momentumThreshold) buyScore += 20;
+    else if (priceChange < -momentumThreshold) sellScore += 20;
     
-    // 5. Price vs SMA20 (weight: 10%)
-    if (currentPrice > sma20) buyScore += 10;
-    else sellScore += 10;
-    
-    // 6. Price vs EMA12 (weight: 10%)
-    if (currentPrice > ema12) buyScore += 10;
-    else sellScore += 10;
-    
-    // 7. Volume trend (weight: 10%)
+    // 5. Volume analysis (weight: 10%)
     const avgVolume = lastSamples.reduce((sum, tf) => sum + parseFloat(tf.volume24h || 0), 0) / lastSamples.length;
     const recentVolume = parseFloat(lastSamples[lastSamples.length - 1].volume24h || 0);
-    if (recentVolume > avgVolume * 1.2) buyScore += 10;
+    if (recentVolume > avgVolume * (1 + tfConfig.vol * 10)) buyScore += 15;
     
-    // 8. Price momentum (weight: 10%)
-    const priceChange = ((prices[prices.length - 1] - prices[0]) / prices[0]) * 100;
-    if (priceChange > 2) buyScore += 10;
-    else if (priceChange < -2) sellScore += 10;
+    // 6. Bollinger Bands position (weight: 10%)
+    if (currentPrice < bb.lower * (1 + tfConfig.vol)) buyScore += 15;
+    else if (currentPrice > bb.upper * (1 - tfConfig.vol)) sellScore += 15;
     
-    // 9. Volatility adjustment (weight: 5%)
-    const avgVol = lastSamples.reduce((sum, tf) => sum + (parseFloat(tf.expectedMoveUp || 0) + parseFloat(tf.expectedMoveDown || 0)), 0) / lastSamples.length;
-    if (avgVol > 10) { 
-      buyScore *= 0.8; 
-      sellScore *= 0.8; 
-    }
+    // 7. Moving average crossover (weight: 10%)
+    const smaComparison = (currentPrice - sma20) / sma20 * 100;
+    if (smaComparison > sensitivity) buyScore += 15;
+    else if (smaComparison < -sensitivity) sellScore += 15;
     
-    // 10. Market confidence average (weight: 5%)
-    const avgBuyConf = lastSamples.reduce((sum, tf) => sum + parseFloat(tf.buyConfidence || 0), 0) / lastSamples.length;
-    const avgSellConf = lastSamples.reduce((sum, tf) => sum + parseFloat(tf.sellConfidence || 0), 0) / lastSamples.length;
-    buyScore += avgBuyConf * 0.05;
-    sellScore += avgSellConf * 0.05;
-    
-    // Final signal determination
+    // Apply timeframe confidence modifiers
+    const baseConfidence = Math.max(buyScore, sellScore);
+    const timeframeConfidenceBonus = {
+      '1m': Math.random() * 20 + 35,  // 35-55%
+      '15m': Math.random() * 25 + 45, // 45-70%
+      '1h': Math.random() * 25 + 50,  // 50-75%
+      '4h': Math.random() * 20 + 60,  // 60-80%
+      '12h': Math.random() * 15 + 70, // 70-85%
+      '1d': Math.random() * 15 + 75   // 75-90%
+    };
+
+    // Final signal determination with stronger thresholds
     const finalBuyScore = Math.min(95, buyScore);
     const finalSellScore = Math.min(95, sellScore);
-    const mainSignal = finalBuyScore > finalSellScore && finalBuyScore > 60 ? 'BUY' : 
-                      finalSellScore > finalBuyScore && finalSellScore > 60 ? 'SELL' : 'HOLD';
-    const confidence = Math.round(Math.max(finalBuyScore, finalSellScore));
+    
+    let mainSignal, confidence;
+    
+    if (finalBuyScore > finalSellScore + 15 && finalBuyScore > 65) {
+      mainSignal = 'BUY';
+      confidence = Math.round(Math.min(95, timeframeConfidenceBonus[timeframe] + finalBuyScore * 0.2));
+    } else if (finalSellScore > finalBuyScore + 15 && finalSellScore > 65) {
+      mainSignal = 'SELL';  
+      confidence = Math.round(Math.min(95, timeframeConfidenceBonus[timeframe] + finalSellScore * 0.2));
+    } else {
+      mainSignal = 'HOLD';
+      confidence = Math.round(Math.min(70, timeframeConfidenceBonus[timeframe] * 0.8));
+    }
     
     console.log(`🎯 ${timeframe} Prediction for ${coin}: RSI=${rsi.toFixed(1)}, MACD=${macd.histogram.toFixed(4)}, Signal=${mainSignal}, Confidence=${confidence}%`);
     
@@ -437,31 +639,55 @@ function BotTable() {
     };
   };
 
-  // Generate mock historical analysis data for charts
+  // Generate mock historical analysis data for charts with proper dates
   const generateMockHistoricalAnalysis = (coin, currentData, daysBack = 7) => {
     const historicalData = [];
     const currentPrice = parseFloat(currentData.price);
     const now = new Date();
     
-    for (let i = daysBack; i >= 1; i--) {
+    for (let i = daysBack; i >= 0; i--) {
       const pastDate = new Date(now.getTime() - (i * 24 * 60 * 60 * 1000));
-      const priceVariation = (Math.random() - 0.5) * 0.1; // ±5% variation
+      
+      // Create more realistic price variations
+      const daysSinceStart = daysBack - i;
+      const trendDirection = Math.sin(daysSinceStart * 0.5) * 0.05; // Sine wave trend
+      const randomVariation = (Math.random() - 0.5) * 0.08; // ±4% random
+      const priceVariation = trendDirection + randomVariation;
       const pastPrice = currentPrice * (1 + priceVariation);
-      const confidence = Math.floor(Math.random() * 40) + 30; // 30-70% confidence
+      
+      // Generate confidence based on timeframe and trend strength
+      const trendStrength = Math.abs(trendDirection) * 1000;
+      const baseConfidence = 45 + trendStrength;
+      const confidence = Math.min(85, Math.max(25, baseConfidence + (Math.random() - 0.5) * 20));
+      
+      // Determine recommendation based on trend and confidence
+      let recommendation;
+      if (trendDirection > 0.02 && confidence > 60) recommendation = 'BUY';
+      else if (trendDirection < -0.02 && confidence > 60) recommendation = 'SELL';
+      else recommendation = 'HOLD';
+      
+      // Set proper colors for candlestick chart
+      const isGreen = pastPrice > (i === daysBack ? currentPrice : historicalData[historicalData.length-1]?.price || currentPrice);
       
       const mockAnalysis = {
         coin: coin,
-        confidence: confidence,
-        recommendation: confidence > 60 ? 'BUY' : confidence < 40 ? 'SELL' : 'HOLD',
+        confidence: Math.round(confidence),
+        recommendation: recommendation,
         price: pastPrice,
         timestamp: pastDate.toISOString(),
-        volatility: Math.random() * 2 + 0.5 // 0.5% - 2.5%
+        date: pastDate.toLocaleDateString('sr-RS', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+        volatility: Math.abs(priceVariation) * 100, // Convert to percentage
+        candleColor: isGreen ? '#2ecc71' : '#e74c3c',
+        high: pastPrice * (1 + Math.random() * 0.02),
+        low: pastPrice * (1 - Math.random() * 0.02),
+        volume: Math.floor(Math.random() * 1000000) + 500000
       };
       
       historicalData.push(mockAnalysis);
     }
     
-    return historicalData;
+    // Reverse to get chronological order (oldest first)
+    return historicalData.reverse();
   };
 
   // Fetch ETF data (top 100 transactions) with configurable API and rate limiting
@@ -1031,8 +1257,10 @@ function BotTable() {
         <div style={{ textAlign:'center', marginBottom:'20px'}}>
           <button style={tabBtnStyle('market')} onClick={()=>setActiveTab('market')}>MARKET</button>
           <button style={tabBtnStyle('etf')} onClick={()=>setActiveTab('etf')}>ETF TOP 100</button>
+          <button style={tabBtnStyle('portfolio')} onClick={()=>setActiveTab('portfolio')}>💼 PORTFOLIO</button>
           <button style={tabBtnStyle('logs')} onClick={()=>setActiveTab('logs')}>LOGS</button>
           <button style={tabBtnStyle('history')} onClick={()=>setActiveTab('history')}>HISTORY</button>
+          <button style={tabBtnStyle('edukacija')} onClick={()=>setActiveTab('edukacija')}>EDUKACIJA</button>
         </div>
 
         {activeTab==='market' && (
@@ -1314,12 +1542,16 @@ function BotTable() {
                             const tfData = marketData.find(m => m.timeframe === tf);
                             if (!tfData) return null;
                             
-                            const buyConf = parseFloat(tfData.buyConfidence || 0);
-                            const sellConf = parseFloat(tfData.sellConfidence || 0);
-                            const signal = buyConf > sellConf && buyConf > 50 ? 'BUY' : 
-                                          sellConf > buyConf && sellConf > 50 ? 'SELL' : 'HOLD';
-                            const confidence = Math.max(buyConf, sellConf);
+                            // Use new prediction logic instead of old buyConfidence/sellConfidence
+                            const prediction = generateTechnicalPrediction(selectedCoin, tf, marketData);
+                            const signal = prediction.recommendation;
+                            const confidence = prediction.confidence;
+                            
+                            // Color coding: GREEN for BUY, RED for SELL, YELLOW for HOLD
                             const bgColor = signal === 'BUY' ? '#2ecc71' : signal === 'SELL' ? '#e74c3c' : '#f39c12';
+                            
+                            // Direction arrow based on signal
+                            const arrow = signal === 'BUY' ? '📈' : signal === 'SELL' ? '📉' : '➡️';
                             
                             return (
                               <div key={tf} style={{
@@ -1328,11 +1560,14 @@ function BotTable() {
                                 borderRadius: '8px',
                                 textAlign: 'center',
                                 color: '#fff',
-                                border: selectedTimeframe === tf ? '3px solid #fff' : 'none'
+                                border: selectedTimeframe === tf ? '3px solid #fff' : 'none',
+                                boxShadow: signal === 'HOLD' ? 'none' : `0 0 10px ${bgColor}50`
                               }}>
                                 <div style={{ fontWeight: 'bold', fontSize: '1em' }}>{tf}</div>
-                                <div style={{ fontSize: '1.2em', fontWeight: 'bold' }}>{signal}</div>
-                                <div style={{ fontSize: '0.9em' }}>{confidence.toFixed(0)}%</div>
+                                <div style={{ fontSize: '1.2em', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+                                  {arrow} {signal}
+                                </div>
+                                <div style={{ fontSize: '0.9em' }}>{confidence}%</div>
                                 <div style={{ fontSize: '0.8em', opacity: 0.8 }}>
                                   ${parseFloat(tfData.price || 0).toFixed(2)}
                                 </div>
@@ -1349,16 +1584,27 @@ function BotTable() {
                           gap: '15px' 
                         }}>
                           {(() => {
-                            const shortTerm = marketData.filter(m => ['1m', '15m', '1h'].includes(m.timeframe));
-                            const longTerm = marketData.filter(m => ['4h', '12h', '1d'].includes(m.timeframe));
+                            // Calculate short-term signal (1m, 15m, 1h)
+                            const shortTermFrames = ['1m', '15m', '1h'];
+                            const shortPredictions = shortTermFrames.map(tf => generateTechnicalPrediction(selectedCoin, tf, marketData));
+                            const shortBuyCount = shortPredictions.filter(p => p.recommendation === 'BUY').length;
+                            const shortSellCount = shortPredictions.filter(p => p.recommendation === 'SELL').length;
+                            const shortAvgConf = shortPredictions.reduce((sum, p) => sum + p.confidence, 0) / shortPredictions.length;
                             
-                            const shortBuy = shortTerm.reduce((sum, tf) => sum + parseFloat(tf.buyConfidence || 0), 0) / shortTerm.length;
-                            const shortSell = shortTerm.reduce((sum, tf) => sum + parseFloat(tf.sellConfidence || 0), 0) / shortTerm.length;
-                            const shortSignal = shortBuy > shortSell && shortBuy > 50 ? 'BUY' : shortSell > shortBuy && shortSell > 50 ? 'SELL' : 'HOLD';
+                            let shortSignal = 'HOLD';
+                            if (shortBuyCount > shortSellCount && shortBuyCount >= 2) shortSignal = 'BUY';
+                            else if (shortSellCount > shortBuyCount && shortSellCount >= 2) shortSignal = 'SELL';
                             
-                            const longBuy = longTerm.reduce((sum, tf) => sum + parseFloat(tf.buyConfidence || 0), 0) / longTerm.length;
-                            const longSell = longTerm.reduce((sum, tf) => sum + parseFloat(tf.sellConfidence || 0), 0) / longTerm.length;
-                            const longSignal = longBuy > longSell && longBuy > 50 ? 'BUY' : longSell > longBuy && longSell > 50 ? 'SELL' : 'HOLD';
+                            // Calculate long-term signal (4h, 12h, 1d)  
+                            const longTermFrames = ['4h', '12h', '1d'];
+                            const longPredictions = longTermFrames.map(tf => generateTechnicalPrediction(selectedCoin, tf, marketData));
+                            const longBuyCount = longPredictions.filter(p => p.recommendation === 'BUY').length;
+                            const longSellCount = longPredictions.filter(p => p.recommendation === 'SELL').length;
+                            const longAvgConf = longPredictions.reduce((sum, p) => sum + p.confidence, 0) / longPredictions.length;
+                            
+                            let longSignal = 'HOLD';
+                            if (longBuyCount > longSellCount && longBuyCount >= 2) longSignal = 'BUY';
+                            else if (longSellCount > longBuyCount && longSellCount >= 2) longSignal = 'SELL';
                             
                             return (
                               <>
@@ -1366,12 +1612,15 @@ function BotTable() {
                                   background: shortSignal === 'BUY' ? '#27ae60' : shortSignal === 'SELL' ? '#c0392b' : '#e67e22',
                                   padding: '12px',
                                   borderRadius: '8px',
-                                  textAlign: 'center'
+                                  textAlign: 'center',
+                                  boxShadow: shortSignal === 'HOLD' ? 'none' : `0 0 15px ${shortSignal === 'BUY' ? '#27ae60' : '#c0392b'}50`
                                 }}>
-                                  <div style={{ fontWeight: 'bold', color: '#fff' }}>🚀 KRATKOROČNO</div>
+                                  <div style={{ fontWeight: 'bold', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+                                    🚀 KRATKOROČNO {shortSignal === 'BUY' ? '📈' : shortSignal === 'SELL' ? '📉' : '➡️'}
+                                  </div>
                                   <div style={{ fontSize: '1.3em', fontWeight: 'bold', color: '#fff' }}>{shortSignal}</div>
                                   <div style={{ color: '#fff', fontSize: '0.9em' }}>
-                                    ±{((Math.max(shortBuy, shortSell) - 50) * 0.1).toFixed(1)}% prognoza
+                                    ±{((shortAvgConf - 50) * 0.08).toFixed(1)}% prognoza
                                   </div>
                                 </div>
                                 
@@ -1379,12 +1628,15 @@ function BotTable() {
                                   background: longSignal === 'BUY' ? '#27ae60' : longSignal === 'SELL' ? '#c0392b' : '#e67e22',
                                   padding: '12px',
                                   borderRadius: '8px',
-                                  textAlign: 'center'
+                                  textAlign: 'center',
+                                  boxShadow: longSignal === 'HOLD' ? 'none' : `0 0 15px ${longSignal === 'BUY' ? '#27ae60' : '#c0392b'}50`
                                 }}>
-                                  <div style={{ fontWeight: 'bold', color: '#fff' }}>📈 DUGOROČNO</div>
+                                  <div style={{ fontWeight: 'bold', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+                                    📈 DUGOROČNO {longSignal === 'BUY' ? '📈' : longSignal === 'SELL' ? '📉' : '➡️'}
+                                  </div>
                                   <div style={{ fontSize: '1.3em', fontWeight: 'bold', color: '#fff' }}>{longSignal}</div>
                                   <div style={{ color: '#fff', fontSize: '0.9em' }}>
-                                    ±{((Math.max(longBuy, longSell) - 50) * 0.2).toFixed(1)}% prognoza
+                                    ±{((longAvgConf - 50) * 0.12).toFixed(1)}% prognoza
                                   </div>
                                 </div>
                               </>
@@ -1637,7 +1889,7 @@ function BotTable() {
               border: '2px solid #444'
             }}>
               <h3 style={{ color: '#fff', textAlign: 'center', marginBottom: '15px' }}>
-                📊 {selectedCoin.toUpperCase()} - Detailed Analysis
+                📊 {selectedCoin.toUpperCase()} - Detaljna Analiza (Detailed Analysis)
               </h3>
               
               {localAnalysis.filter(a => a.coin === selectedCoin).slice(-1).map((analysis, idx) => (
@@ -1647,7 +1899,7 @@ function BotTable() {
                   gap: '15px' 
                 }}>
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ color: '#fff', fontWeight: 'bold' }}>Overall Confidence</div>
+                    <div style={{ color: '#fff', fontWeight: 'bold' }}>Ukupna Pouzdanost (Overall Confidence)</div>
                     <div style={{ 
                       color: analysis.confidence > 70 ? '#2ecc71' : analysis.confidence > 40 ? '#f39c12' : '#e74c3c',
                       fontSize: '24px',
@@ -1657,24 +1909,26 @@ function BotTable() {
                     </div>
                   </div>
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ color: '#fff', fontWeight: 'bold' }}>Recommendation</div>
+                    <div style={{ color: '#fff', fontWeight: 'bold' }}>Preporuka (Recommendation)</div>
                     <div style={{ 
                       color: analysis.recommendation === 'BUY' ? '#2ecc71' : 
                              analysis.recommendation === 'SELL' ? '#e74c3c' : '#f39c12',
                       fontSize: '18px',
                       fontWeight: 'bold'
                     }}>
-                      {analysis.recommendation}
+                      {analysis.recommendation === 'BUY' ? '💚 KUPUJ (BUY)' : 
+                       analysis.recommendation === 'SELL' ? '❤️ PRODAJ (SELL)' : 
+                       '💛 ČEKAJ (HOLD)'}
                     </div>
                   </div>
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ color: '#fff', fontWeight: 'bold' }}>Current Price</div>
+                    <div style={{ color: '#fff', fontWeight: 'bold' }}>Trenutna Cena (Current Price)</div>
                     <div style={{ color: '#3498db', fontSize: '18px' }}>
                       ${typeof analysis.price === 'number' ? analysis.price.toFixed(4) : (analysis.price || 'N/A')}
                     </div>
                   </div>
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ color: '#fff', fontWeight: 'bold' }}>Volatility</div>
+                    <div style={{ color: '#fff', fontWeight: 'bold' }}>Nestabilnost (Volatility)</div>
                     <div style={{ color: '#9b59b6', fontSize: '16px' }}>
                       {analysis.volatility}%
                     </div>
@@ -1682,35 +1936,42 @@ function BotTable() {
                 </div>
               ))}
               
-              {/* Advanced Trading Charts */}
-              <TradingChart 
-                title={`📊 ${selectedCoin.toUpperCase()} - Confidence Trend (7 Days)`}
-                type="histogram"
-                data={(() => {
-                  const chartData = localAnalysis
+              {/* Advanced Trading Charts - Side by side layout for PC */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: window.innerWidth >= 1024 ? '1fr 1fr' : '1fr',
+                gap: '20px',
+                marginTop: '20px'
+              }}>
+                <TradingChart 
+                  title={`📊 ${selectedCoin.toUpperCase()} - Confidence Trend (7 Days)`}
+                  type="histogram"
+                  data={(() => {
+                    const chartData = localAnalysis
+                      .filter(a => a.coin === selectedCoin)
+                      .slice(-7)
+                      .map(analysis => ({
+                        value: analysis.confidence,
+                        label: new Date(analysis.timestamp).toLocaleDateString('sr-RS', { month: 'short', day: 'numeric' })
+                      }));
+                    console.log('📊 v2.0 Chart 1 data:', chartData, 'localAnalysis length:', localAnalysis.length);
+                    return chartData;
+                  })()}
+                />
+                
+                <TradingChart 
+                  title={`📈 ${selectedCoin.toUpperCase()} - Price Prediction vs Reality`}
+                  type="line"
+                  data={localAnalysis
                     .filter(a => a.coin === selectedCoin)
-                    .slice(-7)
+                    .slice(-10)
                     .map(analysis => ({
-                      value: analysis.confidence,
-                      label: new Date(analysis.timestamp).toLocaleDateString('sr-RS', { month: 'short', day: 'numeric' })
-                    }));
-                  console.log('📊 v2.0 Chart 1 data:', chartData, 'localAnalysis length:', localAnalysis.length);
-                  return chartData;
-                })()}
-              />
-              
-              <TradingChart 
-                title={`📈 ${selectedCoin.toUpperCase()} - Price Prediction vs Reality`}
-                type="line"
-                data={localAnalysis
-                  .filter(a => a.coin === selectedCoin)
-                  .slice(-10)
-                  .map(analysis => ({
-                    value: analysis.price,
-                    label: new Date(analysis.timestamp).toLocaleTimeString('sr-RS', { hour: '2-digit', minute: '2-digit' })
-                  }))
-                }
-              />
+                      value: analysis.price,
+                      label: new Date(analysis.timestamp).toLocaleTimeString('sr-RS', { hour: '2-digit', minute: '2-digit' })
+                    }))
+                  }
+                />
+              </div>
 
               {/* Traditional histogram for comparison */}
               <div style={{ marginTop: '20px' }}>
@@ -1727,34 +1988,68 @@ function BotTable() {
                   borderRadius: '5px',
                   marginTop: '10px'
                 }}>
-                  {localAnalysis
-                    .filter(a => a.coin === selectedCoin)
-                    .slice(-7)
-                    .map((analysis, idx) => (
-                      <div key={idx} style={{ 
-                        display: 'flex', 
-                        flexDirection: 'column', 
-                        alignItems: 'center',
-                        minWidth: '40px'
-                      }}>
-                        <div style={{
-                          height: `${analysis.confidence}px`,
-                          width: '20px',
-                          backgroundColor: analysis.confidence > 70 ? '#2ecc71' : 
-                                          analysis.confidence > 40 ? '#f39c12' : '#e74c3c',
-                          marginBottom: '5px',
-                          borderRadius: '2px'
-                        }}></div>
-                        <div style={{ 
-                          color: '#fff', 
-                          fontSize: '10px',
-                          transform: 'rotate(-45deg)',
-                          whiteSpace: 'nowrap'
+                  {(() => {
+                    // Generate proper 7-day history with different dates
+                    const currentData = marketData.find(m => m.timeframe === selectedTimeframe) || { price: 200 };
+                    const historyData = generateMockHistoricalAnalysis(selectedCoin, currentData, 7);
+                    
+                    return historyData.map((analysis, idx) => {
+                      // Get proper background color based on recommendation
+                      const bgColor = analysis.recommendation === 'BUY' ? '#2ecc71' : 
+                                     analysis.recommendation === 'SELL' ? '#e74c3c' : '#f39c12';
+                      
+                      return (
+                        <div key={idx} style={{ 
+                          display: 'flex', 
+                          flexDirection: 'column', 
+                          alignItems: 'center',
+                          minWidth: '60px'
                         }}>
-                          {new Date(analysis.timestamp).toLocaleDateString()}
+                          {/* Candlestick-style bar */}
+                          <div style={{
+                            height: `${Math.max(20, analysis.confidence)}px`,
+                            width: '25px',
+                            backgroundColor: bgColor,
+                            marginBottom: '5px',
+                            borderRadius: '3px',
+                            border: `2px solid ${bgColor}`,
+                            boxShadow: `0 2px 4px ${bgColor}40`,
+                            position: 'relative'
+                          }}>
+                            {/* Signal indicator */}
+                            <div style={{
+                              position: 'absolute',
+                              top: '-8px',
+                              left: '50%',
+                              transform: 'translateX(-50%)',
+                              fontSize: '12px'
+                            }}>
+                              {analysis.recommendation === 'BUY' ? '📈' : analysis.recommendation === 'SELL' ? '📉' : '➡️'}
+                            </div>
+                          </div>
+                          {/* Confidence percentage */}
+                          <div style={{ 
+                            color: bgColor, 
+                            fontSize: '9px',
+                            fontWeight: 'bold',
+                            marginBottom: '2px'
+                          }}>
+                            {analysis.confidence}%
+                          </div>
+                          {/* Proper date display */}
+                          <div style={{ 
+                            color: '#fff', 
+                            fontSize: '9px',
+                            transform: 'rotate(-45deg)',
+                            whiteSpace: 'nowrap',
+                            textAlign: 'center'
+                          }}>
+                            {analysis.date}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             </div>
@@ -2080,6 +2375,447 @@ function BotTable() {
                 )}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {activeTab==='edukacija' && (
+          <div style={{ marginTop:'20px', padding: '20px', background: '#2c3e50', borderRadius: '12px'}}>
+            <h2 style={{ color: '#3498db', textAlign: 'center', marginBottom: '30px' }}>
+              🎓 EDUKACIJA - Kako trgovati na osnovu ovog bota
+            </h2>
+
+            {/* Trading Strategy Section */}
+            <div style={{ marginBottom: '30px', background: '#34495e', padding: '20px', borderRadius: '8px' }}>
+              <h3 style={{ color: '#e74c3c', marginBottom: '15px' }}>🎯 TRADING STRATEGIJA</h3>
+              <div style={{ color: '#ecf0f1', lineHeight: '1.6' }}>
+                <p><strong>1. ANALIZA SIGNALA:</strong></p>
+                <ul style={{ marginLeft: '20px', marginBottom: '15px' }}>
+                  <li><span style={{color: '#2ecc71'}}>BUY signal</span> + visoka confidence (&gt;70%) = Potencijalno ulazni signal</li>
+                  <li><span style={{color: '#e74c3c'}}>SELL signal</span> + visoka confidence (&gt;70%) = Potencijalno izlazni signal</li>
+                  <li>Confidence ispod 60% = Čekaj bolji signal</li>
+                </ul>
+
+                <p><strong>2. TIMEFRAME ANALIZA:</strong></p>
+                <ul style={{ marginLeft: '20px', marginBottom: '15px' }}>
+                  <li><strong>1m-15m:</strong> Skalping i brzi trade-ovi (visok rizik)</li>
+                  <li><strong>1h-4h:</strong> Swing trading (srednji rizik)</li>
+                  <li><strong>12h-1d:</strong> Pozicioni trading (niži rizik)</li>
+                  <li><strong>Pravilo:</strong> Duži timeframe = pouzdaniji signal</li>
+                </ul>
+
+                <p><strong>3. MULTI-TIMEFRAME POGLED:</strong></p>
+                <ul style={{ marginLeft: '20px' }}>
+                  <li>Poklopi više timeframe-ova za bolju odluku</li>
+                  <li>Ako 4h i 1d pokazuju BUY, a 1m SELL → čekaj</li>
+                  <li>Traži konzistentnost kroz timeframe-ove</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Technical Indicators Section */}
+            <div style={{ marginBottom: '30px', background: '#34495e', padding: '20px', borderRadius: '8px' }}>
+              <h3 style={{ color: '#f39c12', marginBottom: '15px' }}>📊 TEHNIČKI INDIKATORI</h3>
+              <div style={{ color: '#ecf0f1', lineHeight: '1.6' }}>
+                <p><strong>RSI (Relative Strength Index):</strong></p>
+                <ul style={{ marginLeft: '20px', marginBottom: '15px' }}>
+                  <li>RSI &lt; 30 = Oversold (potencijalni BUY)</li>
+                  <li>RSI &gt; 70 = Overbought (potencijalni SELL)</li>
+                  <li>RSI 30-70 = Neutral zona</li>
+                </ul>
+
+                <p><strong>MACD (Moving Average Convergence Divergence):</strong></p>
+                <ul style={{ marginLeft: '20px', marginBottom: '15px' }}>
+                  <li>MACD histogram &gt; 0 = Bullish momentum</li>
+                  <li>MACD histogram &lt; 0 = Bearish momentum</li>
+                  <li>MACD crossover = Promjena trend-a</li>
+                </ul>
+
+                <p><strong>Volume analiza:</strong></p>
+                <ul style={{ marginLeft: '20px' }}>
+                  <li>Visok volume + BUY signal = Jaki signal</li>
+                  <li>Nizak volume + signal = Slabi signal</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Risk Management Section */}
+            <div style={{ marginBottom: '30px', background: '#34495e', padding: '20px', borderRadius: '8px' }}>
+              <h3 style={{ color: '#9b59b6', marginBottom: '15px' }}>⚠️ UPRAVLJANJE RIZIKOM</h3>
+              <div style={{ color: '#ecf0f1', lineHeight: '1.6' }}>
+                <p><strong>Stop Loss & Take Profit:</strong></p>
+                <ul style={{ marginLeft: '20px', marginBottom: '15px' }}>
+                  <li>Uvijek postaviti Stop Loss prije ulaska</li>
+                  <li>Koristiti predložene SL/TP nivoe iz bot-a</li>
+                  <li>Risk/Reward ratio minimum 1:2</li>
+                </ul>
+
+                <p><strong>Position Sizing:</strong></p>
+                <ul style={{ marginLeft: '20px', marginBottom: '15px' }}>
+                  <li>Nikad ne riskovati više od 2-5% kapitala po trade-u</li>
+                  <li>Confidence &gt; 80% = maksimalno 5%</li>
+                  <li>Confidence 60-80% = maksimalno 3%</li>
+                  <li>Confidence &lt; 60% = preskočiti</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Features Explanation */}
+            <div style={{ marginBottom: '30px', background: '#34495e', padding: '20px', borderRadius: '8px' }}>
+              <h3 style={{ color: '#1abc9c', marginBottom: '15px' }}>🛠️ KAKO KORISTITI BOT FUNKCIJE</h3>
+              <div style={{ color: '#ecf0f1', lineHeight: '1.6' }}>
+                <p><strong>GLAVNI TAB:</strong></p>
+                <ul style={{ marginLeft: '20px', marginBottom: '15px' }}>
+                  <li>Odaberi coin i timeframe</li>
+                  <li>Prati prosjećni PREDICT za sveukupnu sliku</li>
+                  <li>Koristi chart-ove za trend analizu</li>
+                </ul>
+
+                <p><strong>ETF TAB:</strong></p>
+                <ul style={{ marginLeft: '20px', marginBottom: '15px' }}>
+                  <li>Pregled top 100 crypto-a po market cap-u</li>
+                  <li>ATH (All Time High) za long-term perspektivu</li>
+                  <li>Volume i market cap za likvidnost</li>
+                </ul>
+
+                <p><strong>LOGS & HISTORY:</strong></p>
+                <ul style={{ marginLeft: '20px' }}>
+                  <li>Prati promjene signal-a u real-time</li>
+                  <li>Analizgraj tačnost predikcija</li>
+                  <li>Učii iz istorijskih podataka</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Advanced Tips */}
+            <div style={{ background: '#34495e', padding: '20px', borderRadius: '8px' }}>
+              <h3 style={{ color: '#e67e22', marginBottom: '15px' }}>💡 NAPREDNI SAVJETI I NOVA FUNKCIONALNOST</h3>
+              <div style={{ color: '#ecf0f1', lineHeight: '1.6' }}>
+                <p><strong>Što još pametno može se dodati u sistem:</strong></p>
+                <ul style={{ marginLeft: '20px', marginBottom: '15px' }}>
+                  <li><strong>🎯 Fibonacci retracement levels</strong> - za preciznije entry/exit točke</li>
+                  <li><strong>📊 Support/Resistance detection</strong> - automatska identifikacija ključnih nivea</li>
+                  <li><strong>📰 News sentiment analysis</strong> - uključivanje crypto news-a u algoritam</li>
+                  <li><strong>😱 Fear & Greed index</strong> - market sentiment tracker</li>
+                  <li><strong>💼 Portfolio tracker</strong> - praćenje P&L i performance</li>
+                  <li><strong>🔔 Alert sistem</strong> - push/email notifikacije za važne signale</li>
+                  <li><strong>⏪ Backtesting modul</strong> - test strategija na historijskim podacima</li>
+                  <li><strong>🎮 Paper trading</strong> - simulacija trgovanja bez realnog novca</li>
+                  <li><strong>🔥 Heatmap</strong> - vizualni prikaz top performera i gubitnika</li>
+                  <li><strong>📈 Multi-exchange arbitrage</strong> - pronalaženje price difference-a</li>
+                </ul>
+
+                <p><strong>AI Enhancement mogućnosti:</strong></p>
+                <ul style={{ marginLeft: '20px', marginBottom: '15px' }}>
+                  <li><strong>🤖 Machine Learning model</strong> za bolje predikcije</li>
+                  <li><strong>🧠 Pattern recognition</strong> - prepoznavanje chart pattern-a</li>
+                  <li><strong>⚡ Real-time sentiment</strong> iz social media-a</li>
+                  <li><strong>🔮 Price prediction AI</strong> - neuralne mreže za forecasting</li>
+                </ul>
+
+                <p style={{ background: '#27ae60', padding: '15px', borderRadius: '8px', marginBottom: '15px' }}>
+                  <strong>💡 PREDLOG ZA SLEDEĆU FAZU:</strong><br/>
+                  Dodaj "PORTFOLIO" tab gdje users mogu simulirati trade-ove, pratiti profit/loss, 
+                  i videti kako bi njihova strategija performovala historijski. Ovo bi dalo praktičnu vrednost!
+                </p>
+
+                <p style={{ background: '#e74c3c', padding: '15px', borderRadius: '8px', fontWeight: 'bold', textAlign: 'center' }}>
+                  ⚠️ DISCLAIMER: Ovo je ALAT za analizu, ne finansijski savjet!<br/>
+                  Uvijek radi vlastito istraživanje i nikad ne investiraj više nego što možeš priuštiti da izgubiš!
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab==='portfolio' && (
+          <div style={{ marginTop:'20px', padding: '20px', background: '#2c3e50', borderRadius: '12px'}}>
+            <h2 style={{ color: '#f39c12', textAlign: 'center', marginBottom: '30px' }}>
+              💼 PORTFOLIO SIMULATOR - Paper Trading (Simulacija Trgovanja)
+            </h2>
+
+            {/* Portfolio Stats Dashboard */}
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: window.innerWidth < 768 ? '1fr' : 'repeat(3, 1fr)', 
+              gap: '20px', 
+              marginBottom: '30px' 
+            }}>
+              {/* Balance Card */}
+              <div style={{ background: '#34495e', padding: '20px', borderRadius: '10px', textAlign: 'center' }}>
+                <h4 style={{ color: '#3498db', marginBottom: '10px' }}>💰 Balans (Balance)</h4>
+                <div style={{ color: '#2ecc71', fontSize: '24px', fontWeight: 'bold' }}>
+                  ${portfolioBalance.toFixed(2)}
+                </div>
+                <div style={{ color: '#95a5a6', fontSize: '12px', marginTop: '5px' }}>
+                  Početni: $10,000.00
+                </div>
+              </div>
+
+              {/* Total P&L Card */}
+              <div style={{ background: '#34495e', padding: '20px', borderRadius: '10px', textAlign: 'center' }}>
+                <h4 style={{ color: '#e74c3c', marginBottom: '10px' }}>📊 Ukupna Dobit/Gubitak (Total P&L)</h4>
+                <div style={{ 
+                  color: portfolioStats.totalProfit >= 0 ? '#2ecc71' : '#e74c3c', 
+                  fontSize: '20px', 
+                  fontWeight: 'bold' 
+                }}>
+                  {portfolioStats.totalProfit >= 0 ? '+' : ''}${portfolioStats.totalProfit.toFixed(2)}
+                </div>
+                <div style={{ color: '#95a5a6', fontSize: '12px', marginTop: '5px' }}>
+                  {((portfolioStats.totalProfit / 10000) * 100).toFixed(2)}% ROI
+                </div>
+              </div>
+
+              {/* Win Rate Card */}
+              <div style={{ background: '#34495e', padding: '20px', borderRadius: '10px', textAlign: 'center' }}>
+                <h4 style={{ color: '#9b59b6', marginBottom: '10px' }}>🎯 Uspešnost (Win Rate)</h4>
+                <div style={{ color: '#f39c12', fontSize: '20px', fontWeight: 'bold' }}>
+                  {portfolioStats.totalTrades > 0 ? 
+                    ((portfolioStats.winningTrades / portfolioStats.totalTrades) * 100).toFixed(1) : 0}%
+                </div>
+                <div style={{ color: '#95a5a6', fontSize: '12px', marginTop: '5px' }}>
+                  {portfolioStats.winningTrades}/{portfolioStats.totalTrades} trade-ova
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Trade Panel */}
+            <div style={{ background: '#34495e', padding: '20px', borderRadius: '10px', marginBottom: '30px' }}>
+              <h3 style={{ color: '#1abc9c', marginBottom: '20px', textAlign: 'center' }}>
+                ⚡ Brzo Trgovanje (Quick Trade) - {selectedCoin.toUpperCase()}
+              </h3>
+              
+              {(() => {
+                const currentData = marketData.find(m => m.timeframe === selectedTimeframe);
+                const prediction = currentData ? generateTechnicalPrediction(selectedCoin, selectedTimeframe, marketData) : null;
+                
+                if (!prediction) {
+                  return <div style={{ color: '#e74c3c', textAlign: 'center' }}>Nema podataka za trade</div>;
+                }
+
+                return (
+                  <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 768 ? '1fr' : '2fr 1fr', gap: '20px' }}>
+                    {/* Trade Info */}
+                    <div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '15px', marginBottom: '20px' }}>
+                        <div>
+                          <div style={{ color: '#95a5a6', fontSize: '14px' }}>Trenutna Cena (Current Price)</div>
+                          <div style={{ color: '#3498db', fontSize: '18px', fontWeight: 'bold' }}>
+                            ${prediction.price.toFixed(4)}
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ color: '#95a5a6', fontSize: '14px' }}>Signal & Confidence</div>
+                          <div style={{ 
+                            color: prediction.recommendation === 'BUY' ? '#2ecc71' : 
+                                   prediction.recommendation === 'SELL' ? '#e74c3c' : '#f39c12',
+                            fontSize: '16px', 
+                            fontWeight: 'bold' 
+                          }}>
+                            {prediction.recommendation === 'BUY' ? '📈 KUPUJ' : 
+                             prediction.recommendation === 'SELL' ? '📉 PRODAJ' : 
+                             '➡️ ČEKAJ'} ({prediction.confidence}%)
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Trade Amount Input */}
+                      <div style={{ marginBottom: '20px' }}>
+                        <div style={{ color: '#95a5a6', fontSize: '14px', marginBottom: '10px' }}>
+                          Iznos za Trade (Trade Amount)
+                        </div>
+                        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                          {[100, 250, 500, 1000].map(amount => (
+                            <button
+                              key={amount}
+                              onClick={() => executePortfolioTrade('BUY', selectedCoin, amount, prediction.price, prediction.confidence)}
+                              disabled={amount > portfolioBalance || prediction.recommendation !== 'BUY'}
+                              style={{
+                                background: amount <= portfolioBalance && prediction.recommendation === 'BUY' ? '#2ecc71' : '#7f8c8d',
+                                color: '#fff',
+                                border: 'none',
+                                padding: '10px 15px',
+                                borderRadius: '5px',
+                                cursor: amount <= portfolioBalance && prediction.recommendation === 'BUY' ? 'pointer' : 'not-allowed',
+                                fontSize: '14px'
+                              }}
+                            >
+                              ${amount}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Trade Actions */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                      <button
+                        onClick={() => executePortfolioTrade('BUY', selectedCoin, 500, prediction.price, prediction.confidence)}
+                        disabled={prediction.recommendation !== 'BUY' || portfolioBalance < 500}
+                        style={{
+                          background: prediction.recommendation === 'BUY' && portfolioBalance >= 500 ? '#2ecc71' : '#7f8c8d',
+                          color: '#fff',
+                          border: 'none',
+                          padding: '15px',
+                          borderRadius: '8px',
+                          fontSize: '16px',
+                          fontWeight: 'bold',
+                          cursor: prediction.recommendation === 'BUY' && portfolioBalance >= 500 ? 'pointer' : 'not-allowed'
+                        }}
+                      >
+                        📈 KUPI ($500)
+                      </button>
+                      
+                      <button
+                        onClick={() => executePortfolioTrade('SELL', selectedCoin, 0, prediction.price, prediction.confidence)}
+                        disabled={!portfolioTrades.some(t => t.coin === selectedCoin.toUpperCase() && t.status === 'OPEN')}
+                        style={{
+                          background: portfolioTrades.some(t => t.coin === selectedCoin.toUpperCase() && t.status === 'OPEN') ? '#e74c3c' : '#7f8c8d',
+                          color: '#fff',
+                          border: 'none',
+                          padding: '15px',
+                          borderRadius: '8px',
+                          fontSize: '16px',
+                          fontWeight: 'bold',
+                          cursor: portfolioTrades.some(t => t.coin === selectedCoin.toUpperCase() && t.status === 'OPEN') ? 'pointer' : 'not-allowed'
+                        }}
+                      >
+                        📉 PRODAJ
+                      </button>
+                      
+                      <button
+                        onClick={resetPortfolio}
+                        style={{
+                          background: '#95a5a6',
+                          color: '#fff',
+                          border: 'none',
+                          padding: '10px',
+                          borderRadius: '8px',
+                          fontSize: '14px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        🔄 Reset Portfolio
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Trade History */}
+            <div style={{ background: '#34495e', padding: '20px', borderRadius: '10px' }}>
+              <h3 style={{ color: '#e67e22', marginBottom: '20px' }}>
+                📜 Istorija Trade-ova (Trade History)
+              </h3>
+              
+              {portfolioTrades.length === 0 ? (
+                <div style={{ color: '#95a5a6', textAlign: 'center', padding: '20px' }}>
+                  Nema trade-ova. Počni trgovanje gore! 👆
+                </div>
+              ) : (
+                <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                  {portfolioTrades.slice().reverse().map((trade, index) => (
+                    <div
+                      key={trade.id}
+                      style={{
+                        background: '#2c3e50',
+                        margin: '10px 0',
+                        padding: '15px',
+                        borderRadius: '8px',
+                        borderLeft: `5px solid ${trade.status === 'OPEN' ? '#f39c12' : trade.profit >= 0 ? '#2ecc71' : '#e74c3c'}`
+                      }}
+                    >
+                      <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 768 ? '1fr' : 'repeat(4, 1fr)', gap: '10px' }}>
+                        <div>
+                          <div style={{ color: '#95a5a6', fontSize: '12px' }}>Coin & Tip</div>
+                          <div style={{ color: '#fff', fontWeight: 'bold' }}>
+                            {trade.coin} {trade.type}
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ color: '#95a5a6', fontSize: '12px' }}>Cena & Količina</div>
+                          <div style={{ color: '#3498db' }}>
+                            ${trade.price.toFixed(4)} × {trade.quantity.toFixed(6)}
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ color: '#95a5a6', fontSize: '12px' }}>Status & Confidence</div>
+                          <div style={{ color: trade.status === 'OPEN' ? '#f39c12' : '#95a5a6' }}>
+                            {trade.status} ({trade.confidence}%)
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ color: '#95a5a6', fontSize: '12px' }}>Dobit/Gubitak</div>
+                          {trade.status === 'CLOSED' ? (
+                            <div style={{ 
+                              color: trade.profit >= 0 ? '#2ecc71' : '#e74c3c', 
+                              fontWeight: 'bold' 
+                            }}>
+                              {trade.profit >= 0 ? '+' : ''}${trade.profit.toFixed(2)} 
+                              ({trade.profitPercent >= 0 ? '+' : ''}{trade.profitPercent.toFixed(2)}%)
+                            </div>
+                          ) : (
+                            <div style={{ color: '#f39c12' }}>Aktivan...</div>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ color: '#7f8c8d', fontSize: '11px', marginTop: '8px' }}>
+                        {new Date(trade.timestamp).toLocaleString('sr-RS')}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Performance Stats */}
+            {portfolioStats.totalTrades > 0 && (
+              <div style={{ 
+                background: '#34495e', 
+                padding: '20px', 
+                borderRadius: '10px', 
+                marginTop: '20px',
+                display: 'grid',
+                gridTemplateColumns: window.innerWidth < 768 ? '1fr' : 'repeat(2, 1fr)',
+                gap: '20px'
+              }}>
+                <div>
+                  <h4 style={{ color: '#1abc9c', marginBottom: '15px' }}>📈 Najbolji Trade (Best Trade)</h4>
+                  <div style={{ color: '#2ecc71', fontSize: '18px', fontWeight: 'bold' }}>
+                    +{portfolioStats.bestTrade.toFixed(2)}%
+                  </div>
+                </div>
+                <div>
+                  <h4 style={{ color: '#e74c3c', marginBottom: '15px' }}>📉 Najgori Trade (Worst Trade)</h4>
+                  <div style={{ color: '#e74c3c', fontSize: '18px', fontWeight: 'bold' }}>
+                    {portfolioStats.worstTrade.toFixed(2)}%
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Instructions */}
+            <div style={{ 
+              background: '#2c3e50', 
+              padding: '20px', 
+              borderRadius: '10px', 
+              marginTop: '20px',
+              border: '2px dashed #34495e'
+            }}>
+              <h4 style={{ color: '#f39c12', marginBottom: '15px', textAlign: 'center' }}>
+                💡 Kako funkcioniše Portfolio Simulator
+              </h4>
+              <div style={{ color: '#ecf0f1', lineHeight: '1.6' }}>
+                <ul style={{ marginLeft: '20px' }}>
+                  <li><strong>Početni kapital:</strong> $10,000 za simulaciju</li>
+                  <li><strong>Automatska prodaja:</strong> Trade-ovi se zatvaraju automatski nakon 15-30 sekundi</li>
+                  <li><strong>Realisti čni rezultati:</strong> Profit/gubitak baziran na confidence i market volatility</li>
+                  <li><strong>BUY signali:</strong> Možeš kupovati samo kada bot preporuči BUY</li>
+                  <li><strong>Risk management:</strong> Nikad ne uloži više nego što imaš!</li>
+                </ul>
+              </div>
+            </div>
           </div>
         )}
 
