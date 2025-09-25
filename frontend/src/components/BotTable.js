@@ -930,7 +930,7 @@ function BotTable() {
           textAlign: 'center'
         }}>
           <div style={{ color: '#fff', fontSize: '1.1em', fontWeight: 'bold', marginBottom: '10px' }}>
-            📊 UKUPAN (prosječni) PREDICT: ${overallStats.avgPredict} (vs avgPrice: ${overallStats.avgPrice}) | Accuracy: {overallStats.totalAccuracy}%
+            📊 UKUPAN (prosjećni) PREDICT: ${overallStats.avgPredict} (vs avgPrice: ${overallStats.avgPrice}) | Accuracy: {overallStats.totalAccuracy}%
           </div>
           <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '15px', fontSize: '0.85em' }}>
             {overallStats.timeframeStats.map(stat => (
@@ -946,7 +946,7 @@ function BotTable() {
             ))}
           </div>
           <div style={{ color: '#95a5a6', fontSize: '0.8em', marginTop: '5px' }}>
-            Trenutni coin: {selectedCoin.toUpperCase()} | Timeframe: {selectedTimeframe} | Svi podatci realtime iz API
+            Trenutni coin: {selectedCoin.toUpperCase()} | Timeframe: {selectedTimeframe} | Svi podaci realtime iz API-ja
           </div>
         </div>
 

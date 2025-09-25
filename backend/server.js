@@ -13,9 +13,9 @@ app.use(express.json());
 const COINGECKO_BASE = 'https://api.coingecko.com/api/v3/simple/price';
 const COINDESK_BASE = 'https://api.coindesk.com/v1/bpi/currentprice.json';
 
-// Cache for API results (5 minute cache)
+// Cache for API results (DISABLED for fresh unique timeframe data)
 const dataCache = new Map();
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const CACHE_DURATION = 0; // DISABLED - force fresh calculation every time
 
 // Logging system for signal changes
 const logs = [];
