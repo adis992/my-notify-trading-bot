@@ -1003,6 +1003,12 @@ function BotTable() {
         const data = await fetchMarketData(selectedCoin);
         setMarketData(data || []);
         setLastUpdateTime(new Date().toLocaleTimeString());
+        
+        // Clear connection error if we got data (even fallback data)
+        if (data && data.length > 0) {
+          setConnectionError(null);
+          console.log('✅ Data received, connection error cleared');
+        }
 
         // Timeframe-specific update intervals
         let shouldUpdate = true;
@@ -1077,9 +1083,19 @@ function BotTable() {
         const tradesResult = await fetchTradeHistory();
         setTradeHistory(tradesResult || []);
       } catch (error) {
-        setConnectionError('Greška u učitavanju podataka. Koristim lokalne podatke...');
+        console.log('🔄 Using fallback data due to API error:', error.message);
         const cachedMarket = LocalDB.get('market_data');
         const cachedETF = LocalDB.get('etf_data');
+        
+        // Only show connection error if we can't provide ANY data
+        if (!cachedMarket && !data) {
+          setConnectionError('Nema dostupnih podataka. Molimo pokušajte kasnije.');
+        } else {
+          // We have fallback data, so clear any previous errors
+          setConnectionError(null);
+          console.log('✅ Fallback data available, no error shown');
+        }
+        
         if (cachedMarket) setMarketData(cachedMarket);
         if (cachedETF && activeTab === 'etf') setEtfData(cachedETF);
       } finally {
