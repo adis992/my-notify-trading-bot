@@ -375,6 +375,23 @@ app.get('/api/logs', (req, res) => {
   res.json({ success: true, logs: logs.slice(0, 100) });
 });
 
+// Get trade history (from logs)
+app.get('/api/tradeHistory', (req, res) => {
+  const tradeHistory = logs
+    .filter(log => log.newSignal && log.newSignal !== log.oldSignal)
+    .map(log => ({
+      time: log.time,
+      coin: log.coin,
+      timeframe: log.timeframe,
+      signal: log.newSignal,
+      confidence: log.confidence || 0,
+      reason: log.reason || 'Signal change detected'
+    }))
+    .slice(0, 50); // Last 50 trades
+  
+  res.json({ success: true, trades: tradeHistory });
+});
+
 // Test endpoint
 app.get('/test', (req, res) => {
   res.json({ 
