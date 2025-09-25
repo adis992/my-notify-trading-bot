@@ -564,56 +564,59 @@ function BotTable() {
     }
   };
 
-  // Calculate overall prediction statistics
+  // Calculate overall prediction statistics from marketData (all timeframes for selected coin)
   const calculateOverallStats = () => {
     if (!marketData || marketData.length === 0) {
       return {
         avgPredict: 'N/A',
-        avgPrice: 'N/A',
+        avgPrice: 'N/A', 
         totalAccuracy: 'N/A',
         timeframeStats: []
       };
     }
 
+    console.log('📊 Calculating stats from marketData:', marketData.length, 'items');
+    
     let totalPredicted = 0;
     let totalCurrent = 0;
-    let count = 0;
+    let validCount = 0;
     
     const timeframeStats = [];
-    const timeframes = ['1m', '15m', '1h', '4h', '12h', '1d'];
     
-    timeframes.forEach(tf => {
-      const tfData = marketData.filter(item => item.timeframe === tf);
-      if (tfData.length > 0) {
-        const tfPredicted = tfData.reduce((sum, item) => sum + parseFloat(item.predictedPrice || item.price || 0), 0);
-        const tfCurrent = tfData.reduce((sum, item) => sum + parseFloat(item.price || 0), 0);
-        const tfAvgPredict = tfPredicted / tfData.length;
-        const tfAvgPrice = tfCurrent / tfData.length;
-        const tfAccuracy = tfAvgPrice > 0 ? ((tfAvgPredict / tfAvgPrice) * 100) : 0;
+    // marketData already contains all timeframes for the selected coin
+    marketData.forEach(item => {
+      const predict = parseFloat(item.predictedPrice || 0);
+      const current = parseFloat(item.price || 0);
+      
+      if (predict > 0 && current > 0) {
+        const accuracy = ((predict / current) * 100).toFixed(1);
         
         timeframeStats.push({
-          timeframe: tf,
-          avgPredict: tfAvgPredict.toFixed(2),
-          avgPrice: tfAvgPrice.toFixed(2),
-          accuracy: tfAccuracy.toFixed(1),
-          count: tfData.length
+          timeframe: item.timeframe,
+          avgPredict: predict.toFixed(2),
+          avgPrice: current.toFixed(2),
+          accuracy: accuracy,
+          confidence: item.confidence || 'N/A',
+          signal: item.signal || 'N/A'
         });
         
-        totalPredicted += tfPredicted;
-        totalCurrent += tfCurrent;
-        count += tfData.length;
+        totalPredicted += predict;
+        totalCurrent += current;
+        validCount++;
       }
     });
 
-    const overallAvgPredict = count > 0 ? (totalPredicted / count).toFixed(2) : 'N/A';
-    const overallAvgPrice = count > 0 ? (totalCurrent / count).toFixed(2) : 'N/A';
-    const overallAccuracy = totalCurrent > 0 ? (((totalPredicted / count) / (totalCurrent / count)) * 100).toFixed(1) : 'N/A';
+    const overallAvgPredict = validCount > 0 ? (totalPredicted / validCount).toFixed(2) : 'N/A';
+    const overallAvgPrice = validCount > 0 ? (totalCurrent / validCount).toFixed(2) : 'N/A';
+    const overallAccuracy = validCount > 0 ? ((totalPredicted / totalCurrent) * 100).toFixed(1) : 'N/A';
+
+    console.log('📈 Stats calculated:', { overallAvgPredict, overallAvgPrice, overallAccuracy, timeframeCount: timeframeStats.length });
 
     return {
       avgPredict: overallAvgPredict,
       avgPrice: overallAvgPrice,
       totalAccuracy: overallAccuracy,
-      timeframeStats
+      timeframeStats: timeframeStats.slice(0, 6) // Show first 6 timeframes
     };
   };
 
@@ -933,9 +936,12 @@ function BotTable() {
             {overallStats.timeframeStats.map(stat => (
               <span key={stat.timeframe} style={{ 
                 color: stat.timeframe === selectedTimeframe ? '#f39c12' : '#bdc3c7',
-                fontWeight: stat.timeframe === selectedTimeframe ? 'bold' : 'normal'
+                fontWeight: stat.timeframe === selectedTimeframe ? 'bold' : 'normal',
+                padding: stat.timeframe === selectedTimeframe ? '2px 6px' : '0',
+                backgroundColor: stat.timeframe === selectedTimeframe ? 'rgba(243, 156, 18, 0.2)' : 'transparent',
+                borderRadius: '4px'
               }}>
-                {stat.timeframe}: ${stat.avgPredict}/${stat.avgPrice} ({stat.accuracy}%)
+                {stat.timeframe}: ${stat.avgPredict}/${stat.avgPrice} ({stat.accuracy}%) {stat.signal && `[${stat.signal}]`}
               </span>
             ))}
           </div>
@@ -1754,22 +1760,7 @@ function BotTable() {
             </div>
 
             {/* RAST/PAD & prosječni PREDICT */}
-            <div style={{ marginTop:'20px', textAlign:'center'}}>
-              <p><strong>Ukupni zbroj RAST(%)</strong>: {isNaN(totalRast) ? '0.00' : totalRast.toFixed(2)}%</p>
-              <p><strong>Ukupni zbroj PAD(%)</strong>: {isNaN(totalPad) ? '0.00' : totalPad.toFixed(2)}%</p>
-              {avgPredict!=='-' && (
-                <p>
-                  <strong>Ukupan (prosječni) PREDICT</strong>:
-                  <span style={{
-                    background: overallPredColor, color:'#000',
-                    padding:'4px 6px', borderRadius:'4px', marginLeft:'5px'
-                  }}>
-                    {avgPredict}
-                  </span>
-                  {` (vs avgPrice: ${avgPrice})`}
-                </p>
-              )}
-            </div>
+            {/* Summary statistics moved to top banner - removed duplicate */}
           </>
         )}
 
