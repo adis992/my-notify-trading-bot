@@ -478,30 +478,8 @@ function BotTable() {
       // Use free CoinGecko API with longer intervals to avoid 404 errors
       const apiUrl = 'https://api.coingecko.com/api/v3';
       
-      // Simulate ETF data from market data to avoid API limits
-      if (marketData && marketData.length > 0) {
-        const simulatedETF = coins.slice(0, 20).map((coin, index) => {
-          const coinData = marketData.find(m => m.coin?.toLowerCase() === coin) || marketData[0];
-          return {
-            symbol: coin.toUpperCase(),
-            name: coin.charAt(0).toUpperCase() + coin.slice(1),
-            price: parseFloat(coinData.price || Math.random() * 1000),
-            volume24h: parseFloat(coinData.volume24h || Math.random() * 1000000000),
-            marketCap: parseFloat(coinData.marketCap || Math.random() * 10000000000),
-            change24h: (Math.random() - 0.5) * 20, // ±10%
-            volumeRank: index + 1,
-            supply: Math.random() * 1000000000,
-            maxSupply: Math.random() * 2000000000,
-            ath: parseFloat(coinData.price || 100) * (1 + Math.random()),
-            athDate: new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000).toISOString(),
-            lastUpdate: new Date().toLocaleTimeString()
-          };
-        });
-        
-        setEtfData(simulatedETF);
-        LocalDB.save('etf_data', simulatedETF);
-        return;
-      }
+      // Always use real API for accurate ETF data instead of simulation
+      console.log('🎯 Fetching REAL ETF data from CoinGecko API for accurate ATH values');
 
       // Fallback to limited API call with error handling
       const etfResponse = await fetch(`${apiUrl}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=50&page=1&sparkline=false`, {
