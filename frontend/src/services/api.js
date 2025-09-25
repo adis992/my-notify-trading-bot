@@ -24,7 +24,7 @@ const createApiClient = () => {
   const apiKey = localStorage.getItem('trading_api_key') || '';
   
   return axios.create({
-    timeout: 30000, // 30 seconds timeout for cold starts
+    timeout: 60000, // 60 seconds timeout for Render cold starts
     headers: {
       'Content-Type': 'application/json',
       ...(apiKey && { 'Authorization': `Bearer ${apiKey}` })
@@ -47,14 +47,38 @@ const retryRequest = async (requestFn, maxRetries = 3, delay = 2000) => {
   }
 };
 
+// Wake up Render backend to avoid cold start delays
+const wakeUpBackend = async (apiUrl) => {
+    try {
+        console.log(`🔥 Waking up backend at: ${apiUrl}/test`);
+        const apiClient = createApiClient();
+        await apiClient.get(`${apiUrl}/test`);
+        console.log(`✅ Backend is awake and ready!`);
+    } catch (error) {
+        console.warn(`⚠️ Backend wake up failed, continuing anyway...`, error.message);
+    }
+};
+
 export const fetchMarketData = async (coin) => {
     return retryRequest(async () => {
         const API_BASE_URL = getApiUrls();
-        const apiClient = createApiClient();
-        console.log(`🚀 Fetching real-time data from: ${API_BASE_URL}`);
         
-        const response = await apiClient.get(`${API_BASE_URL}/api/getAllIndicators?coin=${coin}`);
-        return response.data.success ? response.data.data : [];
+        // Wake up backend first if it's Render
+        if (API_BASE_URL.includes('onrender.com')) {
+            await wakeUpBackend(API_BASE_URL);
+        }
+        
+        const apiClient = createApiClient();
+        console.log(`🚀 Fetching real-time data from: ${API_BASE_URL}/api/getAllIndicators?coin=${coin}`);
+        
+        try {
+            const response = await apiClient.get(`${API_BASE_URL}/api/getAllIndicators?coin=${coin}`);
+            console.log(`✅ API Response received:`, response.status, response.data?.success);
+            return response.data.success ? response.data.data : [];
+        } catch (error) {
+            console.error(`❌ API Error:`, error.response?.status, error.response?.data, error.message);
+            throw error;
+        }
     });
 };
 
