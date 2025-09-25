@@ -357,16 +357,8 @@ app.get('/api/getAllIndicators', async (req, res) => {
       });
     }
 
-    const cacheKey = `indicators_${coinData.symbol}`;
-    const cached = dataCache.get(cacheKey);
-    
-    // Return cached data if less than 5 minutes old
-    if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
-      console.log(`📦 Returning cached data for ${coinData.name}`);
-      return res.json({ success: true, data: cached.data });
-    }
-
-    console.log(`🚀 Generating fresh REALTIME data for ${coinData.name}...`);
+    // FORCE FRESH DATA - NO CACHE for unique timeframe generation
+    console.log(`🚀 Generating FRESH UNIQUE timeframe data for ${coinData.name} (cache disabled)...`);
 
     // Get REALTIME current price for this coin
     const currentPrice = await fetchRealPrice(coinData);
@@ -382,13 +374,8 @@ app.get('/api/getAllIndicators', async (req, res) => {
       marketData.currentPrice
     );
 
-    // Cache result
-    dataCache.set(cacheKey, {
-      data: results,
-      timestamp: Date.now()
-    });
-
-    console.log(`✅ Successfully generated REALTIME indicators for ${coinData.name}`);
+    // NO CACHE - Fresh unique timeframe data every time
+    console.log(`✅ Successfully generated UNIQUE timeframe indicators for ${coinData.name}`);
     res.json({ success: true, data: results });
 
   } catch (error) {
