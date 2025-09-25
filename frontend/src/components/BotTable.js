@@ -523,7 +523,32 @@ function BotTable() {
     }
   };
 
-    useEffect(() => {
+    // Clear old cached data that contains static prices
+  const clearOldCachedData = () => {
+    try {
+      console.log('🧹 Clearing old cached data with static prices...');
+      
+      // Clear old ETF data
+      localStorage.removeItem('etf_data');
+      localStorage.removeItem('etf_data_timestamp');
+      
+      // Clear old analysis data for all coins
+      const coins = ['btc', 'eth', 'sol', 'ada', 'xrp', 'bnb', 'doge', 'avax', 'dot', 'link'];
+      coins.forEach(coin => {
+        localStorage.removeItem(`analysis_history_${coin}`);
+        localStorage.removeItem(`analysis_history_${coin}_timestamp`);
+      });
+      
+      console.log('✅ Old cached data cleared - forcing realtime API data');
+    } catch (error) {
+      console.warn('⚠️ Error clearing cache:', error);
+    }
+  };
+
+  useEffect(() => {
+    // Clear old data first
+    clearOldCachedData();
+    
     const loadLocalAnalysis = () => {
       const history = LocalDB.getHistory(selectedCoin);
       setLocalAnalysis(history);
